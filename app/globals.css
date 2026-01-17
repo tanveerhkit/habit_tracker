@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  /* Neon Accents */
+  --color-neon-red: #FF003C;
+  --color-neon-green: #00F763;
+  --color-neon-blue: #00C2FF;
+  --color-neon-purple: #D500F9;
+  --color-neon-orange: #FF9100;
+
+  --font-sans: var(--font-inter);
+}
+
+:root {
+  --background: #09090b;
+  /* Zinc 950 - Deep dark */
+  --foreground: #fafafa;
+  /* Zinc 50 */
+
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  /* Week Colors for Gradients/Accents */
+  --week-1: var(--color-neon-red);
+  --week-2: var(--color-neon-green);
+  --week-3: var(--color-neon-blue);
+  --week-4: var(--color-neon-purple);
+  --week-5: var(--color-neon-orange);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Utilities */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.glass-hover {
+  transition: all 0.3s ease;
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
