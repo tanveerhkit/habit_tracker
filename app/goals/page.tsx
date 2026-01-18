@@ -17,8 +17,9 @@ const goals = [
 ];
 
 export default function GoalsPage() {
+    // Fix scrolling: Layout has overflow-hidden, so this page needs its own scroll container
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-8 flex flex-col items-center">
+        <div className="h-screen overflow-y-auto w-full bg-black text-white p-4 md:p-8 flex flex-col items-center">
             {/* Header */}
             <header className="w-full max-w-5xl flex items-center justify-between mb-8 md:mb-12">
                 <Link href="/" className="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
