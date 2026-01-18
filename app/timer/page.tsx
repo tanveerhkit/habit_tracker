@@ -34,7 +34,12 @@ export default function TimerPage() {
         try {
             const res = await fetch('/api/timer?range=month');
             const data = await res.json();
-            setLogs(data);
+            if (Array.isArray(data)) {
+                setLogs(data);
+            } else {
+                console.error("Timer API returned non-array:", data);
+                setLogs([]);
+            }
         } catch (error) {
             console.error("Failed to fetch logs", error);
         }

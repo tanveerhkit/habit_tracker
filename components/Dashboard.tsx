@@ -65,17 +65,29 @@ export default function Dashboard() {
             // Fetch Habits
             const habitsRes = await fetch('/api/habits');
             const habitsData = await habitsRes.json();
-            setHabits(habitsData);
+            if (Array.isArray(habitsData)) {
+                setHabits(habitsData);
+            } else {
+                console.error("Habits API returned non-array:", habitsData);
+                setHabits([]);
+            }
 
             // Fetch Logs (Full Range)
             const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 }).toISOString();
             const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 }).toISOString();
             const logsRes = await fetch(`/api/logs?startDate=${start}&endDate=${end}`);
             const logsData = await logsRes.json();
-            setLogs(logsData);
+            if (Array.isArray(logsData)) {
+                setLogs(logsData);
+            } else {
+                console.error("Logs API returned non-array:", logsData);
+                setLogs([]);
+            }
 
         } catch (error) {
             console.error("Failed to fetch data", error);
+            setHabits([]);
+            setLogs([]);
         } finally {
             setLoading(false);
         }
@@ -186,11 +198,11 @@ export default function Dashboard() {
     ];
 
     return (
-        <div className="flex flex-col h-full w-full p-4 gap-4 max-w-[1800px] mx-auto relative">
+        <div className="flex flex-col h-full w-full p-2 md:p-4 gap-4 max-w-[1800px] mx-auto relative overflow-y-auto md:overflow-hidden">
             {/* Edit Modal Overlay */}
             {isEditModalOpen && editingHabit && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="w-[400px] glass p-6 flex flex-col gap-4 border border-neon-blue/50 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm fixed">
+                    <div className="w-[90%] md:w-[400px] glass p-6 flex flex-col gap-4 border border-neon-blue/50 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
                         <h2 className="text-xl font-bold text-white mb-2">Edit Habit</h2>
 
                         <div className="flex flex-col gap-1">
@@ -239,8 +251,8 @@ export default function Dashboard() {
             )}
 
             {/* Top Header */}
-            <div className="grid grid-cols-12 gap-4 h-[140px] shrink-0">
-                <div className="col-span-2 glass flex flex-col items-center justify-center text-center relative group cursor-pointer" onClick={() => setCurrentDate(new Date())}>
+            <div className="flex flex-col md:grid md:grid-cols-12 gap-4 h-auto md:h-[140px] shrink-0">
+                <div className="md:col-span-2 h-[100px] md:h-auto glass flex flex-col items-center justify-center text-center relative group cursor-pointer" onClick={() => setCurrentDate(new Date())}>
                     <div className="absolute top-2 left-2 text-xs text-gray-500 hover:text-white z-20" onClick={(e) => { e.stopPropagation(); setCurrentDate(subMonths(currentDate, 1)); }}>◀</div>
                     <div className="absolute top-2 right-2 text-xs text-gray-500 hover:text-white z-20" onClick={(e) => { e.stopPropagation(); setCurrentDate(addMonths(currentDate, 1)); }}>▶</div>
 
@@ -248,14 +260,14 @@ export default function Dashboard() {
                     <h1 className="text-5xl font-extrabold text-white">{format(currentDate, 'yyyy')}</h1>
                 </div>
 
-                <div className="col-span-8 glass relative overflow-hidden p-2 flex flex-col">
+                <div className="md:col-span-8 h-[200px] md:h-auto glass relative overflow-hidden p-2 flex flex-col order-3 md:order-none">
                     <div className="absolute top-2 left-0 right-0 text-center uppercase text-xs font-bold tracking-widest text-gray-400 z-10">Daily Habits Completed</div>
                     <div className="flex-1 mt-4 w-full h-full">
                         <StatsChart logs={activeLogs} totalHabits={habits.length} currentDate={currentDate} />
                     </div>
                 </div>
 
-                <div className="col-span-2 glass flex flex-col items-center justify-center gap-2">
+                <div className="md:col-span-2 h-[100px] md:h-auto glass flex flex-col items-center justify-center gap-2">
                     <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Level Up Tracker</div>
                     <h3 className="text-2xl font-bold text-white mb-2">Tanveer</h3>
 
@@ -266,17 +278,17 @@ export default function Dashboard() {
             </div>
 
             {/* Main Content */}
-            <div className="grid grid-cols-12 gap-4 flex-1 min-h-0">
+            <div className="flex flex-col md:grid md:grid-cols-12 gap-4 flex-1 min-h-0">
                 {/* Sidebar Habits */}
-                <div className="col-span-3 glass flex flex-col">
-                    <div className="h-12 border-b border-white/10 flex items-center justify-between px-4 font-bold tracking-wider text-sm">
+                <div className="md:col-span-3 glass flex flex-col md:h-full max-h-[300px] md:max-h-none overflow-hidden">
+                    <div className="h-12 border-b border-white/10 flex items-center justify-between px-4 font-bold tracking-wider text-sm shrink-0">
                         <span>HABITS</span>
                         <span className="text-xs text-gray-500">{habits.length} Active</span>
                     </div>
 
-                    {/* Header Spacers to align with Grid */}
-                    <div className="h-8 border-b border-white/10 bg-black/40"></div>
-                    <div className="h-6 border-b border-white/10 bg-black/40"></div>
+                    {/* Header Spacers to align with Grid - hidden on mobile since alignment isn't strict vertical */}
+                    <div className="hidden md:block h-8 border-b border-white/10 bg-black/40"></div>
+                    <div className="hidden md:block h-6 border-b border-white/10 bg-black/40"></div>
 
                     <div className="flex-1 overflow-y-auto">
                         {habits.map((habit) => (
