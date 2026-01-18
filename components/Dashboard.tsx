@@ -274,13 +274,16 @@ export default function Dashboard() {
                     <Link href="/timer" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-blue hover:bg-neon-blue/20 hover:border-neon-blue transition-all flex items-center gap-2">
                         <span>⏱</span> Stopwatch
                     </Link>
+                    <Link href="/goals" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-purple hover:bg-neon-purple/20 hover:border-neon-purple transition-all flex items-center gap-2">
+                        <span>🎯</span> Goals
+                    </Link>
                 </div>
             </div>
 
             {/* Main Content */}
             <div className="flex flex-col md:grid md:grid-cols-12 gap-4 flex-1 min-h-0">
                 {/* Sidebar Habits */}
-                <div className="md:col-span-3 glass flex flex-col md:h-full max-h-[300px] md:max-h-none overflow-hidden">
+                <div className="md:col-span-3 glass flex flex-col md:h-full max-h-[300px] md:max-h-none overflow-hidden hidden md:flex">
                     <div className="h-12 border-b border-white/10 flex items-center justify-between px-4 font-bold tracking-wider text-sm shrink-0">
                         <span>HABITS</span>
                         <span className="text-xs text-gray-500">{habits.length} Active</span>
