@@ -1,4 +1,4 @@
-import { eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth } from 'date-fns';
+import { eachDayOfInterval, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 
 export function getWeeksInMonth(currentDate: Date): Date[][] {
   const monthStart = startOfMonth(currentDate);

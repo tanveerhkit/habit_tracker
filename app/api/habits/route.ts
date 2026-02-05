@@ -7,7 +7,7 @@ export async function GET() {
         await dbConnect();
         const habits = await Habit.find({}).sort({ order: 1 });
         return NextResponse.json(habits);
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to fetch habits' }, { status: 500 });
     }
 }
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         // Ensure description is handled if present
         const habit = await Habit.create(body);
         return NextResponse.json(habit, { status: 201 });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to create habit' }, { status: 500 });
     }
 }
@@ -34,7 +34,7 @@ export async function PUT(request: Request) {
 
         const habit = await Habit.findByIdAndUpdate(_id, updates, { new: true });
         return NextResponse.json(habit);
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to update habit' }, { status: 500 });
     }
 }
@@ -53,7 +53,7 @@ export async function DELETE(request: Request) {
         await HabitLog.deleteMany({ habitId: id });
 
         return NextResponse.json({ message: 'Deleted successfully' });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to delete habit' }, { status: 500 });
     }
 }

@@ -2,11 +2,9 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { format, startOfDay, endOfDay, isSameDay, subDays, startOfWeek, endOfWeek, isWithinInterval, addDays } from 'date-fns'; // Added imports
-import { motion, AnimatePresence } from 'framer-motion';
+import { format, isSameDay, subDays } from 'date-fns';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, AreaChart, Area, CartesianGrid } from 'recharts';
 import { cn } from '@/lib/utils';
-import { ITimerLog } from '@/models/TimerLog'; // Type import might fail if strictly checked, using 'any' locally or separate interface
 
 interface TimerLog {
     _id: string;
@@ -21,6 +19,7 @@ const CATEGORIES = {
     Food: { color: '#ff9900', label: 'Food', bg: 'bg-neon-orange' }, // Neon Orange
     Other: { color: '#b026ff', label: 'Other', bg: 'bg-neon-purple' } // Neon Purple
 };
+type CategoryKey = keyof typeof CATEGORIES;
 
 export default function TimerPage() {
     const [logs, setLogs] = useState<TimerLog[]>([]);
@@ -46,6 +45,7 @@ export default function TimerPage() {
     };
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchLogs();
     }, []);
 
@@ -145,12 +145,9 @@ export default function TimerPage() {
             const date = subDays(new Date(), i);
             const dayLogs = logs.filter(l => isSameDay(new Date(l.startTime), date));
 
-            const stats = { name: format(date, 'EEE'), Study: 0, Food: 0, Other: 0 };
+            const stats: { name: string } & Record<CategoryKey, number> = { name: format(date, 'EEE'), Study: 0, Food: 0, Other: 0 };
             dayLogs.forEach(l => {
-                if (stats[l.category as keyof typeof stats] !== undefined) {
-                    // @ts-ignore
-                    stats[l.category] += l.duration;
-                }
+                stats[l.category as CategoryKey] += l.duration;
             });
 
             // Convert to hours
@@ -171,12 +168,9 @@ export default function TimerPage() {
             const date = subDays(new Date(), i);
             const dayLogs = logs.filter(l => isSameDay(new Date(l.startTime), date));
 
-            const stats = { name: format(date, 'MMM d'), Study: 0, Food: 0, Other: 0 };
+            const stats: { name: string } & Record<CategoryKey, number> = { name: format(date, 'MMM d'), Study: 0, Food: 0, Other: 0 };
             dayLogs.forEach(l => {
-                if (stats[l.category as keyof typeof stats] !== undefined) {
-                    // @ts-ignore
-                    stats[l.category] += l.duration;
-                }
+                stats[l.category as CategoryKey] += l.duration;
             });
 
             // Convert to hours
@@ -262,7 +256,7 @@ export default function TimerPage() {
 
                     {/* Daily Breakdown */}
                     <div className="glass p-6 flex flex-col h-[300px]">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Today's Focus</h3>
+                        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Today&apos;s Focus</h3>
                         <div className="flex-1 w-full min-h-0">
                             {dailyData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">

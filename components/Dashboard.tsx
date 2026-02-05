@@ -6,7 +6,6 @@ import { IHabit, IHabitLog } from '@/lib/types';
 import WeeklyGrid from './WeeklyGrid';
 import { cn } from '@/lib/utils';
 import { addMonths, subMonths, format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfWeek, endOfWeek } from 'date-fns';
-import { motion } from 'framer-motion';
 import StatsChart from './StatsChart';
 import { getWeeksInMonth } from '@/lib/dateUtils';
 
@@ -14,7 +13,6 @@ export default function Dashboard() {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [habits, setHabits] = useState<IHabit[]>([]);
     const [logs, setLogs] = useState<IHabitLog[]>([]);
-    const [loading, setLoading] = useState(true);
     const [newHabitName, setNewHabitName] = useState('');
     const [newHabitDescription, setNewHabitDescription] = useState('');
     const [editingHabit, setEditingHabit] = useState<IHabit | null>(null);
@@ -63,7 +61,6 @@ export default function Dashboard() {
 
     // Fetch data (habits and logs)
     const fetchData = useCallback(async () => {
-        setLoading(true);
         try {
             // Fetch Habits
             const habitsRes = await fetch('/api/habits');
@@ -91,8 +88,6 @@ export default function Dashboard() {
             console.error("Failed to fetch data", error);
             setHabits([]);
             setLogs([]);
-        } finally {
-            setLoading(false);
         }
     }, [currentDate]);
 

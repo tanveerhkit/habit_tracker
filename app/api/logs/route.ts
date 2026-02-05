@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import HabitLog from '@/models/HabitLog';
-import { startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
 export async function GET(request: Request) {
     try {
@@ -18,8 +17,7 @@ export async function GET(request: Request) {
             date: { $gte: new Date(startDate), $lte: new Date(endDate) }
         });
         return NextResponse.json(logs);
-    } catch (error) {
-        console.error(error);
+    } catch {
         return NextResponse.json({ error: 'Failed to fetch logs' }, { status: 500 });
     }
 }
@@ -42,8 +40,7 @@ export async function POST(request: Request) {
         );
 
         return NextResponse.json(log);
-    } catch (error) {
-        console.error(error);
+    } catch {
         return NextResponse.json({ error: 'Failed to update log' }, { status: 500 });
     }
 }

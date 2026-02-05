@@ -5,7 +5,6 @@ import { IHabit, IHabitLog } from '@/lib/types';
 import { getWeeksInMonth } from '@/lib/dateUtils';
 import { format, isSameDay, parseISO, isSameMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
 
 interface WeeklyGridProps {
     habits: IHabit[];
@@ -58,7 +57,7 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle, extraB
                         <div className="flex-1 flex flex-col">
                             {habits.map(habit => (
                                 <div key={habit._id} className="flex h-12 border-b border-white/5 items-center">
-                                    {weekDays.map((day, i) => {
+                                    {weekDays.map((day) => {
                                         const isCurrentMonth = isSameMonth(day, currentDate);
                                         const isCompleted = logs.some(l => l.habitId === habit._id && isSameDay(parseISO(l.date), day) && l.completed);
                                         return (
@@ -86,7 +85,7 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle, extraB
 
                             {/* Bottom Stats: Count */}
                             <div className="flex h-8 border-t border-white/10 bg-black/20">
-                                {weekDays.map((day, i) => {
+                                {weekDays.map((day) => {
                                     const isCurrentMonth = isSameMonth(day, currentDate);
                                     const count = logs.filter(l => isSameDay(parseISO(l.date), day) && l.completed).length;
                                     return (
@@ -99,7 +98,7 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle, extraB
 
                             {/* Bottom Stats: Percentage */}
                             <div className={cn("flex h-8 border-t border-white/10", config.bg, "bg-opacity-20")}>
-                                {weekDays.map((day, i) => {
+                                {weekDays.map((day) => {
                                     const isCurrentMonth = isSameMonth(day, currentDate);
                                     const count = logs.filter(l => isSameDay(parseISO(l.date), day) && l.completed).length;
                                     const pct = habits.length > 0 ? Math.round((count / habits.length) * 100) : 0;
