@@ -12,9 +12,10 @@ interface WeeklyGridProps {
     logs: IHabitLog[];
     currentDate: Date;
     onToggle: (habitId: string, date: Date) => void;
+    extraBottomPadding?: number;
 }
 
-export default function WeeklyGrid({ habits, logs, currentDate, onToggle }: WeeklyGridProps) {
+export default function WeeklyGrid({ habits, logs, currentDate, onToggle, extraBottomPadding = 0 }: WeeklyGridProps) {
     // Group days by week relative to the start of the year
     const weeks = useMemo(() => getWeeksInMonth(currentDate), [currentDate]);
 
@@ -28,7 +29,7 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle }: Week
     ];
 
     return (
-        <div className="flex h-full w-full select-none">
+        <div className="flex w-full select-none">
             {weeks.map((weekDays, weekIndex) => {
                 const config = weekConfig[weekIndex % 5];
 
@@ -83,9 +84,6 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle }: Week
                                 </div>
                             ))}
 
-                            {/* Spacer to push stats to bottom if habits don't fill */}
-                            <div className="flex-1 min-h-4"></div>
-
                             {/* Bottom Stats: Count */}
                             <div className="flex h-8 border-t border-white/10 bg-black/20">
                                 {weekDays.map((day, i) => {
@@ -112,6 +110,11 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle }: Week
                                     )
                                 })}
                             </div>
+
+                            {/* Dynamic spacer to keep scroll height in sync with habit list */}
+                            {extraBottomPadding > 0 && (
+                                <div style={{ height: extraBottomPadding }} className="shrink-0" />
+                            )}
                         </div>
                     </div>
                 );

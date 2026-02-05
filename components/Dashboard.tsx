@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { IHabit, IHabitLog } from '@/lib/types';
 import WeeklyGrid from './WeeklyGrid';
@@ -19,6 +19,9 @@ export default function Dashboard() {
     const [newHabitDescription, setNewHabitDescription] = useState('');
     const [editingHabit, setEditingHabit] = useState<IHabit | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const habitScrollRef = useRef<HTMLDivElement>(null);
+    const gridScrollRef = useRef<HTMLDivElement>(null);
+    const [gridSpacer, setGridSpacer] = useState(0);
 
     // ... (fetchData) ...
 
@@ -97,6 +100,64 @@ export default function Dashboard() {
         fetchData();
     }, [fetchData]);
 
+    // Keep habit list and weekly grid vertically in sync so rows stay aligned
+    useEffect(() => {
+        const habitEl = habitScrollRef.current;
+        const gridEl = gridScrollRef.current;
+        if (!habitEl || !gridEl) return;
+
+        let syncingFromHabits = false;
+        let syncingFromGrid = false;
+
+        const syncFromHabits = () => {
+            if (syncingFromGrid) return;
+            syncingFromHabits = true;
+            const habitRange = habitEl.scrollHeight - habitEl.clientHeight;
+            const gridRange = gridEl.scrollHeight - gridEl.clientHeight;
+            const ratio = habitRange > 0 ? habitEl.scrollTop / habitRange : 0;
+            gridEl.scrollTop = gridRange > 0 ? ratio * gridRange : 0;
+            requestAnimationFrame(() => { syncingFromHabits = false; });
+        };
+
+        const syncFromGrid = () => {
+            if (syncingFromHabits) return;
+            syncingFromGrid = true;
+            const habitRange = habitEl.scrollHeight - habitEl.clientHeight;
+            const gridRange = gridEl.scrollHeight - gridEl.clientHeight;
+            const ratio = gridRange > 0 ? gridEl.scrollTop / gridRange : 0;
+            habitEl.scrollTop = habitRange > 0 ? ratio * habitRange : 0;
+            requestAnimationFrame(() => { syncingFromGrid = false; });
+        };
+
+        habitEl.addEventListener('scroll', syncFromHabits, { passive: true });
+        gridEl.addEventListener('scroll', syncFromGrid, { passive: true });
+
+        return () => {
+            habitEl.removeEventListener('scroll', syncFromHabits);
+            gridEl.removeEventListener('scroll', syncFromGrid);
+        };
+    }, []);
+
+    // Match scrollable heights between habits list and weekly grid by adding dynamic spacer to the grid
+    useLayoutEffect(() => {
+        const alignHeights = () => {
+            const habitEl = habitScrollRef.current;
+            const gridEl = gridScrollRef.current;
+            if (!habitEl || !gridEl) return;
+            const diff = habitEl.scrollHeight - gridEl.scrollHeight;
+            const target = diff > 0 ? diff : 0;
+            setGridSpacer(prev => (prev === target ? prev : target));
+        };
+
+        alignHeights();
+        const rafId = requestAnimationFrame(alignHeights); // ensure post-layout measurement
+        window.addEventListener('resize', alignHeights);
+        return () => {
+            cancelAnimationFrame(rafId);
+            window.removeEventListener('resize', alignHeights);
+        };
+    }, [habits, logs, gridSpacer]);
+
     const toggleHabit = async (habitId: string, date: Date) => {
         const dateStr = date.toISOString();
         // Use precise matching for logs
@@ -168,7 +229,7 @@ export default function Dashboard() {
         // weeks is Array<Date[]>
         return weeks.map((weekDays, index) => {
             // weekDays contains all valid dates now (including padding dates)
-            let weekPossible = habits.length * weekDays.length;
+            const weekPossible = habits.length * weekDays.length;
             let weekCompleted = 0;
 
             weekDays.forEach(day => {
@@ -289,11 +350,11 @@ export default function Dashboard() {
                         <span className="text-xs text-gray-500">{habits.length} Active</span>
                     </div>
 
-                    {/* Header Spacers to align with Grid - hidden on mobile since alignment isn't strict vertical */}
-                    <div className="hidden md:block h-8 border-b border-white/10 bg-black/40"></div>
-                    <div className="hidden md:block h-6 border-b border-white/10 bg-black/40"></div>
+                    <div ref={habitScrollRef} className="flex-1 overflow-y-auto">
+                        {/* Scrollable spacers to match WeeklyGrid headers exactly (Week title 32px + date row 24px) */}
+                        <div className="hidden md:block h-8 bg-black/40"></div>
+                        <div className="hidden md:block h-6 border-b border-white/10 bg-black/40"></div>
 
-                    <div className="flex-1 overflow-y-auto">
                         {habits.map((habit) => (
                             <div key={habit._id} className="flex h-12 items-center px-4 hover:bg-white/5 border-b border-white/5 text-sm text-gray-300 group relative">
                                 <span className={cn("mr-3 text-lg", `text-${habit.color}`)}>{habit.icon}</span>
@@ -322,25 +383,31 @@ export default function Dashboard() {
                             </div>
                         )}
 
-                        {/* Add Habit Form */}
-                        <form onSubmit={createHabit} className="p-2 border-t border-white/10 mt-auto flex flex-col gap-2">
-                            <input
-                                type="text"
-                                placeholder="+ Add Habit"
-                                className="w-full bg-transparent border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-neon-blue"
-                                value={newHabitName}
-                                onChange={(e) => setNewHabitName(e.target.value)}
-                            />
-                            <input
-                                type="text"
-                                placeholder="Optional note / goal..."
-                                value={newHabitDescription}
-                                onChange={(e) => setNewHabitDescription(e.target.value)}
-                                className="w-full bg-transparent border border-white/10 rounded px-2 py-1 text-xs text-gray-400 focus:text-white focus:outline-none focus:border-neon-blue transition-colors"
-                            />
-                            <button type="submit" className="hidden" />
-                        </form>
+                        {/* Footer spacer to match WeeklyGrid bottom stats height */}
+                        <div className="hidden md:flex flex-col">
+                            <div className="h-8 border-t border-white/10 bg-black/20"></div>
+                            <div className="h-8 border-t border-white/10 bg-black/20"></div>
+                        </div>
                     </div>
+
+                    {/* Add Habit Form (outside scroll to keep row heights aligned) */}
+                    <form onSubmit={createHabit} className="p-2 border-t border-white/10 flex flex-col gap-2">
+                        <input
+                            type="text"
+                            placeholder="+ Add Habit"
+                            className="w-full bg-transparent border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-neon-blue"
+                            value={newHabitName}
+                            onChange={(e) => setNewHabitName(e.target.value)}
+                        />
+                        <input
+                            type="text"
+                            placeholder="Optional note / goal..."
+                            value={newHabitDescription}
+                            onChange={(e) => setNewHabitDescription(e.target.value)}
+                            className="w-full bg-transparent border border-white/10 rounded px-2 py-1 text-xs text-gray-400 focus:text-white focus:outline-none focus:border-neon-blue transition-colors"
+                        />
+                        <button type="submit" className="hidden" />
+                    </form>
 
                     {/* Bottom Stats Labels */}
                     {habits.length > 0 && (
@@ -361,12 +428,13 @@ export default function Dashboard() {
                     <div className="h-12 border-b border-white/10 flex items-center justify-center font-bold tracking-wider text-sm text-gray-400">
                         WEEKLY PROGRESS
                     </div>
-                    <div className="flex-1 overflow-auto">
+                    <div ref={gridScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
                         <WeeklyGrid
                             habits={habits}
                             logs={logs}
                             currentDate={currentDate}
                             onToggle={toggleHabit}
+                            extraBottomPadding={gridSpacer}
                         />
                     </div>
                 </div>
