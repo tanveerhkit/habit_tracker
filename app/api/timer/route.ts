@@ -17,7 +17,8 @@ export async function POST(request: Request) {
         });
 
         return NextResponse.json(log, { status: 201 });
-    } catch {
+    } catch (error) {
+        console.error("POST /api/timer error:", error);
         return NextResponse.json({ error: 'Failed to create timer log' }, { status: 500 });
     }
 }
@@ -47,7 +48,8 @@ export async function GET(request: Request) {
 
         const logs = await TimerLog.find(query).sort({ startTime: -1 });
         return NextResponse.json(logs);
-    } catch {
+    } catch (error) {
+        console.error("GET /api/timer error:", error);
         return NextResponse.json({ error: 'Failed to fetch timer logs' }, { status: 500 });
     }
 }

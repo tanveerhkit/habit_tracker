@@ -20,9 +20,12 @@ export default function Dashboard() {
     const habitScrollRef = useRef<HTMLDivElement>(null);
     const gridScrollRef = useRef<HTMLDivElement>(null);
     const [gridSpacer, setGridSpacer] = useState(0);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     const promptEdit = (habit: IHabit) => {
         setEditingHabit(habit);
+        setConfirmDelete(false);
         setIsEditModalOpen(true);
     };
 
@@ -45,15 +48,24 @@ export default function Dashboard() {
 
     const handleDeleteHabit = async () => {
         if (!editingHabit?._id) return;
-        if (!confirm("Are you sure you want to delete this habit? This cannot be undone.")) return;
 
+        setIsDeleting(true);
         try {
-            await fetch(`/api/habits?id=${editingHabit._id}`, { method: 'DELETE' });
-            setHabits(prev => prev.filter(h => h._id !== editingHabit._id));
-            setIsEditModalOpen(false);
-            setEditingHabit(null);
+            const res = await fetch(`/api/habits?id=${editingHabit._id}`, { method: 'DELETE' });
+            
+            if (res.ok) {
+                setHabits(prev => prev.filter(h => h._id !== editingHabit._id));
+                setIsEditModalOpen(false);
+                setEditingHabit(null);
+                setConfirmDelete(false);
+            } else {
+                const data = await res.json();
+                console.error('Delete failed:', data.error);
+            }
         } catch (error) {
             console.error("Failed to delete habit", error);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -282,26 +294,47 @@ export default function Dashboard() {
                         </div>
 
                         <div className="flex justify-between mt-2">
-                            <button
-                                onClick={handleDeleteHabit}
-                                className="px-4 py-2 text-sm text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors self-start"
-                            >
-                                Delete Habit
-                            </button>
-                            <div className="flex gap-2">
+                            {confirmDelete ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-red-400">Sure?</span>
+                                    <button
+                                        onClick={handleDeleteHabit}
+                                        disabled={isDeleting}
+                                        className="px-3 py-1.5 text-xs font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+                                    >
+                                        {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmDelete(false)}
+                                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : (
                                 <button
-                                    onClick={() => setIsEditModalOpen(false)}
-                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                                    onClick={() => setConfirmDelete(true)}
+                                    className="px-4 py-2 text-sm text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
                                 >
-                                    Cancel
+                                    Delete Habit
                                 </button>
-                                <button
-                                    onClick={handleUpdateHabit}
-                                    className="px-4 py-2 text-sm bg-neon-blue/20 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue/40 transition-all font-bold"
-                                >
-                                    Save Changes
-                                </button>
-                            </div>
+                            )}
+                            {!confirmDelete && (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => { setIsEditModalOpen(false); setConfirmDelete(false); }}
+                                        className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleUpdateHabit}
+                                        className="px-4 py-2 text-sm bg-neon-blue/20 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue/40 transition-all font-bold"
+                                    >
+                                        Save Changes
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -319,7 +352,7 @@ export default function Dashboard() {
 
                 <div className="md:col-span-8 h-[200px] md:h-auto glass relative overflow-hidden p-2 flex flex-col order-3 md:order-none">
                     <div className="absolute top-2 left-0 right-0 text-center uppercase text-xs font-bold tracking-widest text-gray-400 z-10">Daily Habits Completed</div>
-                    <div className="flex-1 mt-4 w-full h-full">
+                    <div className="flex-1 mt-4 w-full h-full min-h-[120px]">
                         <StatsChart logs={activeLogs} totalHabits={habits.length} currentDate={currentDate} />
                     </div>
                 </div>
@@ -328,12 +361,14 @@ export default function Dashboard() {
                     <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Level Up Tracker</div>
                     <h3 className="text-2xl font-bold text-white mb-2">Tanveer</h3>
 
-                    <Link href="/timer" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-blue hover:bg-neon-blue/20 hover:border-neon-blue transition-all flex items-center gap-2">
-                        <span>⏱</span> Stopwatch
-                    </Link>
-                    <Link href="/goals" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-purple hover:bg-neon-purple/20 hover:border-neon-purple transition-all flex items-center gap-2">
-                        <span>🎯</span> Goals
-                    </Link>
+                    <div className="flex gap-2">
+                        <Link href="/timer" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-blue hover:bg-neon-blue/20 hover:border-neon-blue transition-all flex items-center gap-2">
+                            <span>⏱</span> Stopwatch
+                        </Link>
+                        <Link href="/goals" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-purple hover:bg-neon-purple/20 hover:border-neon-purple transition-all flex items-center gap-2">
+                            <span>🎯</span> Goals
+                        </Link>
+                    </div>
                 </div>
             </div>
 
@@ -347,7 +382,6 @@ export default function Dashboard() {
                     </div>
 
                     <div ref={habitScrollRef} className="flex-1 overflow-y-auto">
-                        {/* Scrollable spacers to match WeeklyGrid headers exactly (Week title 32px + date row 24px) */}
                         <div className="hidden md:block h-8 bg-black/40"></div>
                         <div className="hidden md:block h-6 border-b border-white/10 bg-black/40"></div>
 
@@ -360,15 +394,12 @@ export default function Dashboard() {
                                         <span className="truncate text-[10px] text-gray-500 leading-tight block">{habit.description}</span>
                                     )}
                                 </div>
-
-                                {/* Edit Button */}
                                 <button
                                     onClick={(e) => { e.stopPropagation(); promptEdit(habit); }}
                                     className="opacity-0 group-hover:opacity-100 ml-auto mr-2 text-gray-500 hover:text-white transition-opacity self-center"
                                 >
                                     ✏️
                                 </button>
-
                                 <div className={cn("w-[2px] h-6 rounded-full absolute right-0 bg-transparent top-1/2 -translate-y-1/2", `bg-${habit.color}`)} />
                             </div>
                         ))}
@@ -379,14 +410,12 @@ export default function Dashboard() {
                             </div>
                         )}
 
-                        {/* Footer spacer to match WeeklyGrid bottom stats height */}
                         <div className="hidden md:flex flex-col">
                             <div className="h-8 border-t border-white/10 bg-black/20"></div>
                             <div className="h-8 border-t border-white/10 bg-black/20"></div>
                         </div>
                     </div>
 
-                    {/* Add Habit Form (outside scroll to keep row heights aligned) */}
                     <form onSubmit={createHabit} className="p-2 border-t border-white/10 flex flex-col gap-2">
                         <input
                             type="text"
@@ -405,7 +434,6 @@ export default function Dashboard() {
                         <button type="submit" className="hidden" />
                     </form>
 
-                    {/* Bottom Stats Labels */}
                     {habits.length > 0 && (
                         <>
                             <div className="h-8 border-t border-white/10 bg-black/20 flex items-center justify-end px-4 text-[10px] font-bold text-gray-400">
@@ -418,9 +446,7 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                {/* Weekly Grid */}
                 <div className="col-span-7 glass overflow-hidden flex flex-col">
-                    {/* Header Spacer to align with Sidebar "HABITS" header */}
                     <div className="h-12 border-b border-white/10 flex items-center justify-center font-bold tracking-wider text-sm text-gray-400">
                         WEEKLY PROGRESS
                     </div>
@@ -435,7 +461,6 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Right Sidebar Goals */}
                 <div className="col-span-2 glass p-4 flex flex-col relative">
                     <h4 className="text-xs font-bold uppercase tracking-widest mb-4">Monthly Goal</h4>
                     <div className="flex-1 space-y-4">
@@ -452,12 +477,9 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Bottom Summary Row */}
             <div className="grid grid-cols-5 gap-4 h-[80px] shrink-0">
                 {[0, 1, 2, 3, 4].map(i => {
-                    // Ensure we don't render empty cards if month has fewer weeks (e.g. 4)
                     if (!weeklyStats[i]) return <div key={i} className="glass opacity-30"></div>;
-
                     const stats = weeklyStats[i];
                     return (
                         <div key={i} className="glass flex flex-col items-center justify-center relative overflow-hidden group p-2">

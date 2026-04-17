@@ -17,7 +17,8 @@ export async function GET(request: Request) {
             date: { $gte: new Date(startDate), $lte: new Date(endDate) }
         });
         return NextResponse.json(logs);
-    } catch {
+    } catch (error) {
+        console.error("GET /api/logs error:", error);
         return NextResponse.json({ error: 'Failed to fetch logs' }, { status: 500 });
     }
 }
@@ -40,7 +41,8 @@ export async function POST(request: Request) {
         );
 
         return NextResponse.json(log);
-    } catch {
+    } catch (error) {
+        console.error("POST /api/logs error:", error);
         return NextResponse.json({ error: 'Failed to update log' }, { status: 500 });
     }
 }

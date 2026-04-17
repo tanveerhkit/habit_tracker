@@ -7,7 +7,8 @@ export async function GET() {
         await dbConnect();
         const habits = await Habit.find({}).sort({ order: 1 });
         return NextResponse.json(habits);
-    } catch {
+    } catch (error) {
+        console.error("GET /api/habits error:", error);
         return NextResponse.json({ error: 'Failed to fetch habits' }, { status: 500 });
     }
 }
@@ -19,7 +20,8 @@ export async function POST(request: Request) {
         // Ensure description is handled if present
         const habit = await Habit.create(body);
         return NextResponse.json(habit, { status: 201 });
-    } catch {
+    } catch (error) {
+        console.error("POST /api/habits error:", error);
         return NextResponse.json({ error: 'Failed to create habit' }, { status: 500 });
     }
 }
@@ -34,7 +36,8 @@ export async function PUT(request: Request) {
 
         const habit = await Habit.findByIdAndUpdate(_id, updates, { new: true });
         return NextResponse.json(habit);
-    } catch {
+    } catch (error) {
+        console.error("PUT /api/habits error:", error);
         return NextResponse.json({ error: 'Failed to update habit' }, { status: 500 });
     }
 }
@@ -43,17 +46,35 @@ export async function DELETE(request: Request) {
     try {
         await dbConnect();
         const { searchParams } = new URL(request.url);
-        const id = searchParams.get('id');
+        let id = searchParams.get('id');
+
+        // Fallback to body if not in query
+        if (!id) {
+            try {
+                const body = await request.clone().json();
+                id = body.id || body._id;
+            } catch {
+                // Ignore body parse error
+            }
+        }
 
         if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
 
-        await Habit.findByIdAndDelete(id);
+        console.log('API: Deleting habit with ID:', id);
+        const deletedHabit = await Habit.findByIdAndDelete(id);
+        
+        if (!deletedHabit) {
+            console.warn('API: Habit not found for ID:', id);
+            return NextResponse.json({ error: 'Habit not found' }, { status: 404 });
+        }
+
         // Cascade delete logs
         const HabitLog = (await import('@/models/HabitLog')).default;
         await HabitLog.deleteMany({ habitId: id });
 
         return NextResponse.json({ message: 'Deleted successfully' });
-    } catch {
+    } catch (error) {
+        console.error("DELETE /api/habits error:", error);
         return NextResponse.json({ error: 'Failed to delete habit' }, { status: 500 });
     }
 }

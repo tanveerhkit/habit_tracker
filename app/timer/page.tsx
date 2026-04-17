@@ -260,7 +260,7 @@ export default function TimerPage() {
                     {/* Daily Breakdown */}
                     <div className="glass p-6 flex flex-col h-[300px]">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Today&apos;s Focus</h3>
-                        <div className="flex-1 w-full min-h-0">
+                        <div className="flex-1 w-full min-h-[200px]">
                             {dailyData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
@@ -296,7 +296,7 @@ export default function TimerPage() {
                     {/* Weekly Summary */}
                     <div className="glass p-6 flex flex-col h-[300px]">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Weekly Analysis (Hours)</h3>
-                        <div className="flex-1 w-full min-h-0 text-xs">
+                        <div className="flex-1 w-full min-h-[200px] text-xs">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={weeklyData} stackOffset="sign">
                                     <XAxis dataKey="name" stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
@@ -317,7 +317,7 @@ export default function TimerPage() {
                     {/* Monthly Trend */}
                     <div className="glass p-6 flex flex-col h-[300px]">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">30-Day Trend (Hours)</h3>
-                        <div className="flex-1 w-full min-h-0 text-xs">
+                        <div className="flex-1 w-full min-h-[200px] text-xs">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={monthlyData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                                     <defs>
