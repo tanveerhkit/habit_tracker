@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { IHabit, IHabitLog } from '@/lib/types';
 import WeeklyGrid from './WeeklyGrid';
 import { cn } from '@/lib/utils';
-import { addMonths, subMonths, format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfWeek, endOfWeek } from 'date-fns';
+import { addMonths, subMonths, format, startOfMonth, endOfMonth, isSameDay, isSameMonth, parseISO, startOfWeek, endOfWeek } from 'date-fns';
 import StatsChart from './StatsChart';
 import { getWeeksInMonth } from '@/lib/dateUtils';
 
@@ -20,8 +20,6 @@ export default function Dashboard() {
     const habitScrollRef = useRef<HTMLDivElement>(null);
     const gridScrollRef = useRef<HTMLDivElement>(null);
     const [gridSpacer, setGridSpacer] = useState(0);
-
-    // ... (fetchData) ...
 
     const promptEdit = (habit: IHabit) => {
         setEditingHabit(habit);
@@ -151,7 +149,9 @@ export default function Dashboard() {
             cancelAnimationFrame(rafId);
             window.removeEventListener('resize', alignHeights);
         };
-    }, [habits, logs, gridSpacer]);
+    // gridSpacer intentionally excluded: including it causes an infinite update loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [habits, logs]);
 
     const toggleHabit = async (habitId: string, date: Date) => {
         const dateStr = date.toISOString();
@@ -175,9 +175,8 @@ export default function Dashboard() {
                 body: JSON.stringify({ habitId, date: dateStr, completed: newValue })
             });
             const updatedLog = await res.json();
-            // Replace temp log with real one
-            setLogs(prev => prev.map(l => (l.habitId === habitId && new Date(l.date).toDateString() === date.toDateString()) ? updatedLog : l));
-            // Re-fetch to ensure sync? Or just rely on local state? Local is faster.
+            // Replace temp log with real one (use isSameDay for timezone-safe comparison)
+            setLogs(prev => prev.map(l => (l.habitId === habitId && isSameDay(parseISO(l.date), date)) ? updatedLog : l));
         } catch (error) {
             console.error("Failed to toggle", error);
             fetchData();
@@ -213,8 +212,10 @@ export default function Dashboard() {
         return logs.filter(log => habits.some(h => h._id === log.habitId));
     }, [logs, habits]);
 
-    const totalPossible = habits.length * new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-    const totalCompleted = activeLogs.filter(l => l.completed).length;
+    const daysInCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const totalPossible = habits.length * daysInCurrentMonth;
+    // Only count completed logs within the current month (activeLogs may include padding days from adjacent months)
+    const totalCompleted = activeLogs.filter(l => l.completed && isSameMonth(parseISO(l.date), currentDate)).length;
     const completionRate = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
 
     // Weekly Stats Calculation
@@ -257,7 +258,7 @@ export default function Dashboard() {
         <div className="flex flex-col h-full w-full p-2 md:p-4 gap-4 max-w-[1800px] mx-auto relative overflow-y-auto md:overflow-hidden">
             {/* Edit Modal Overlay */}
             {isEditModalOpen && editingHabit && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm fixed">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="w-[90%] md:w-[400px] glass p-6 flex flex-col gap-4 border border-neon-blue/50 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
                         <h2 className="text-xl font-bold text-white mb-2">Edit Habit</h2>
 

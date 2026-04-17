@@ -8,10 +8,10 @@ const goals = [
     { id: 1, label: "Namaz 5 tym", icon: "🕌", color: "neon-green" },
     { id: 2, label: "Build Personal Brand", icon: "👨‍💻", color: "neon-blue" },
     { id: 3, label: "Good Physique (Look Maxing)", icon: "💪", color: "neon-orange" },
-    { id: 4, label: "Financially Stable", icon: "💰", color: "neon-yellow" }, // creating custom color or re-using
+    { id: 4, label: "Financially Stable", icon: "💰", color: "neon-orange" },
     { id: 5, label: "Good Conversational Skills", icon: "🎙️", color: "neon-purple" },
     { id: 6, label: "Start a Startup", icon: "🚀", color: "neon-red" },
-    { id: 7, label: "A Nice Behaviour (With Sharp Mind)", icon: "🧠", color: "neon-pink" }, // pink/red
+    { id: 7, label: "A Nice Behaviour (With Sharp Mind)", icon: "🧠", color: "neon-red" },
     { id: 8, label: "Better Eyesight", icon: "👁️", color: "neon-blue" },
     { id: 9, label: "Height Increase", icon: "📏", color: "neon-green" }
 ];

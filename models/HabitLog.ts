@@ -19,6 +19,11 @@ const HabitLogSchema: Schema = new Schema({
 // Compound index to ensure one log per habit per day
 HabitLogSchema.index({ habitId: 1, date: 1 }, { unique: true });
 
+// Prevent Mongoose model recompilation error in development (HMR)
+if (process.env.NODE_ENV !== 'production') {
+    delete mongoose.models.HabitLog;
+}
+
 const HabitLog: Model<IHabitLog> = mongoose.models.HabitLog || mongoose.model<IHabitLog>('HabitLog', HabitLogSchema);
 
 export default HabitLog;

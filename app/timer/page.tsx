@@ -207,7 +207,10 @@ export default function TimerPage() {
                         <div className={cn("absolute inset-0 opacity-10 transition-colors duration-500", activeCategory ? CATEGORIES[activeCategory as keyof typeof CATEGORIES].bg : "bg-gray-900")} />
 
                         <div className="relative z-10 text-center">
-                            <div className={cn("text-xs font-bold uppercase tracking-[0.2em] mb-4 transition-colors", activeCategory ? `text-${CATEGORIES[activeCategory as keyof typeof CATEGORIES].color}` : "text-gray-500")}>
+                            <div
+                                className="text-xs font-bold uppercase tracking-[0.2em] mb-4 transition-colors"
+                                style={{ color: activeCategory ? CATEGORIES[activeCategory as keyof typeof CATEGORIES].color : '#6b7280' }}
+                            >
                                 {activeCategory ? `Currently: ${activeCategory}` : "Timer Idle"}
                             </div>
                             <div className="text-8xl font-black tabular-nums tracking-tighter text-white drop-shadow-lg">
@@ -277,7 +280,7 @@ export default function TimerPage() {
                                         <Tooltip
                                             contentStyle={{ backgroundColor: '#000', borderColor: '#333', borderRadius: '8px' }}
                                             itemStyle={{ color: '#fff' }}
-                                            formatter={(value: number) => [`${value.toFixed(2)} hrs`, 'Duration']}
+                                            formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} hrs`, 'Duration']}
                                         />
                                         <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
                                     </PieChart>

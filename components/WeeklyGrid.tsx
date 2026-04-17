@@ -83,11 +83,11 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle, extraB
                                 </div>
                             ))}
 
-                            {/* Bottom Stats: Count */}
+                            {/* Bottom Stats: Count (only count logs for active habits) */}
                             <div className="flex h-8 border-t border-white/10 bg-black/20">
                                 {weekDays.map((day) => {
                                     const isCurrentMonth = isSameMonth(day, currentDate);
-                                    const count = logs.filter(l => isSameDay(parseISO(l.date), day) && l.completed).length;
+                                    const count = logs.filter(l => habits.some(h => h._id === l.habitId) && isSameDay(parseISO(l.date), day) && l.completed).length;
                                     return (
                                         <div key={day.toISOString()} className={cn("flex-1 flex items-center justify-center text-[10px] font-bold text-gray-400 border-r border-white/5", !isCurrentMonth && "opacity-30")}>
                                             {count}
@@ -100,7 +100,7 @@ export default function WeeklyGrid({ habits, logs, currentDate, onToggle, extraB
                             <div className={cn("flex h-8 border-t border-white/10", config.bg, "bg-opacity-20")}>
                                 {weekDays.map((day) => {
                                     const isCurrentMonth = isSameMonth(day, currentDate);
-                                    const count = logs.filter(l => isSameDay(parseISO(l.date), day) && l.completed).length;
+                                    const count = logs.filter(l => habits.some(h => h._id === l.habitId) && isSameDay(parseISO(l.date), day) && l.completed).length;
                                     const pct = habits.length > 0 ? Math.round((count / habits.length) * 100) : 0;
                                     return (
                                         <div key={day.toISOString()} className={cn("flex-1 flex items-center justify-center text-[9px] font-bold border-r border-white/5", config.text, !isCurrentMonth && "opacity-30")}>
