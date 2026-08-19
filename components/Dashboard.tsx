@@ -59,10 +59,10 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const monthStart = useMemo(() => startOfMonth(currentDate), [currentDate]);
+  const monthEnd = useMemo(() => endOfMonth(currentDate), [currentDate]);
+  const calendarStart = useMemo(() => startOfWeek(monthStart, { weekStartsOn: 1 }), [monthStart]);
+  const calendarEnd = useMemo(() => endOfWeek(monthEnd, { weekStartsOn: 1 }), [monthEnd]);
   const calendarDays = useMemo(
     () => eachDayOfInterval({ start: calendarStart, end: calendarEnd }),
     [calendarStart, calendarEnd],
@@ -235,7 +235,7 @@ export default function Dashboard() {
       streak += 1;
     }
     return streak;
-  }, [getLog, habits, logs]);
+  }, [getLog, habits]);
 
   const weeklyStats = useMemo(() => {
     const weeks: { label: string; completed: number; possible: number }[] = [];
@@ -248,7 +248,7 @@ export default function Dashboard() {
       weeks.push({ label: `Week ${weeks.length + 1}`, completed, possible: days.length * habits.length });
     }
     return weeks;
-  }, [calendarDays, currentDate, getLog, habits, logs]);
+  }, [calendarDays, currentDate, getLog, habits]);
 
   const todayLabel = format(new Date(), 'EEEE, MMM d');
 
