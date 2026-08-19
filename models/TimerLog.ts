@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface ITimerLog extends Document {
+    userId: mongoose.Types.ObjectId;
     category: 'Study' | 'Other' | 'Food';
     startTime: Date;
     endTime: Date;
@@ -8,6 +9,7 @@ export interface ITimerLog extends Document {
 }
 
 const TimerLogSchema: Schema = new Schema({
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     category: { type: String, required: true, enum: ['Study', 'Other', 'Food'] },
     startTime: { type: Date, required: true },
     endTime: { type: Date, required: true },

@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
 import TimerLog from '@/models/TimerLog';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { startOfDay, endOfDay, subDays } from 'date-fns';
 
 export async function POST(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const body = await request.json();
         const { category, startTime, endTime, duration } = body;
+        if (!['Study', 'Other', 'Food'].includes(category) || !startTime || !endTime || !Number.isFinite(Number(duration)) || Number(duration) <= 0) return NextResponse.json({ error: 'Valid category, times, and duration are required' }, { status: 400 });
 
         const log = await TimerLog.create({
+            userId: user._id,
             category,
             startTime,
             endTime,
@@ -25,11 +28,12 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const { searchParams } = new URL(request.url);
         const range = searchParams.get('range'); // 'today' or 'week'
 
-        let query = {};
+        let query: Record<string, unknown> = { userId: user._id };
         const now = new Date();
 
         if (range === 'today') {
@@ -46,7 +50,7 @@ export async function GET(request: Request) {
             };
         }
 
-        const logs = await TimerLog.find(query).sort({ startTime: -1 });
+        const logs = await TimerLog.find(query).sort({ startTime: -1 }).lean();
         return NextResponse.json(logs);
     } catch (error) {
         console.error("GET /api/timer error:", error);

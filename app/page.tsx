@@ -1,9 +1,7 @@
-import Dashboard from "@/components/Dashboard";
+import Dashboard from '@/components/Dashboard';
+import AuthScreen from '@/components/AuthScreen';
+import { AuthGate } from '@/lib/auth-client';
 
 export default function Home() {
-  return (
-    <main className="h-screen w-full bg-background text-foreground overflow-hidden">
-      <Dashboard />
-    </main>
-  );
+  return <AuthGate authScreen={<AuthScreen />}><Dashboard /></AuthGate>;
 }

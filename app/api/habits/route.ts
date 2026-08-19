@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
 import Habit from '@/models/Habit';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 const allowedFields = ['name', 'description', 'icon', 'color', 'goal', 'order'] as const;
 
@@ -18,10 +18,11 @@ function normalizeHabit(input: Record<string, unknown>): HabitUpdate {
     return result;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        await dbConnect();
-        const habits = await Habit.find({}).sort({ order: 1, createdAt: 1 }).lean();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+        const habits = await Habit.find({ userId: user._id }).sort({ order: 1, createdAt: 1 }).lean();
         return NextResponse.json(habits);
     } catch (error) {
         console.error('GET /api/habits error:', error);
@@ -31,11 +32,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const body = await request.json();
         const values = normalizeHabit(body);
         if (!values.name || typeof values.name !== 'string') return NextResponse.json({ error: 'Habit name is required' }, { status: 400 });
-        const habit = await Habit.create(values);
+        const habit = await Habit.create({ ...values, userId: user._id });
         return NextResponse.json(habit, { status: 201 });
     } catch (error) {
         console.error('POST /api/habits error:', error);
@@ -45,13 +47,14 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const body = await request.json();
         const { _id, ...input } = body;
         if (!_id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
         const updates = normalizeHabit(input);
         if (updates.name === '') return NextResponse.json({ error: 'Habit name is required' }, { status: 400 });
-        const habit = await Habit.findByIdAndUpdate(_id, updates, { new: true, runValidators: true }).lean();
+        const habit = await Habit.findOneAndUpdate({ _id, userId: user._id }, updates, { new: true, runValidators: true }).lean();
         if (!habit) return NextResponse.json({ error: 'Habit not found' }, { status: 404 });
         return NextResponse.json(habit);
     } catch (error) {
@@ -62,7 +65,8 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const { searchParams } = new URL(request.url);
         let id = searchParams.get('id');
         if (!id) {
@@ -74,10 +78,10 @@ export async function DELETE(request: Request) {
             }
         }
         if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
-        const deletedHabit = await Habit.findByIdAndDelete(id);
+        const deletedHabit = await Habit.findOneAndDelete({ _id: id, userId: user._id });
         if (!deletedHabit) return NextResponse.json({ error: 'Habit not found' }, { status: 404 });
         const HabitLog = (await import('@/models/HabitLog')).default;
-        await HabitLog.deleteMany({ habitId: id });
+        await HabitLog.deleteMany({ habitId: id, userId: user._id });
         return NextResponse.json({ message: 'Deleted successfully' });
     } catch (error) {
         console.error('DELETE /api/habits error:', error);

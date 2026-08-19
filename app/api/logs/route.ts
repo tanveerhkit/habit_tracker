@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
 import HabitLog from '@/models/HabitLog';
+import Habit from '@/models/Habit';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const { searchParams } = new URL(request.url);
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
@@ -14,7 +16,8 @@ export async function GET(request: Request) {
         const end = new Date(endDate);
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return NextResponse.json({ error: 'Invalid date range' }, { status: 400 });
 
-        const logs = await HabitLog.find({ date: { $gte: start, $lte: end } }).sort({ date: 1 }).lean();
+        const habitIds = await Habit.find({ userId: user._id }).distinct('_id');
+        const logs = await HabitLog.find({ userId: user._id, habitId: { $in: habitIds }, date: { $gte: start, $lte: end } }).sort({ date: 1 }).lean();
         return NextResponse.json(logs);
     } catch (error) {
         console.error('GET /api/logs error:', error);
@@ -24,16 +27,19 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        await dbConnect();
+        const user = await getAuthenticatedUser(request);
+        if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
         const body = await request.json();
         const { habitId, date, completed, value } = body;
         if (!habitId || !date || typeof completed !== 'boolean') return NextResponse.json({ error: 'Habit, date, and completed status are required' }, { status: 400 });
 
         const targetDate = new Date(date);
+        const ownedHabit = await Habit.exists({ _id: habitId, userId: user._id });
+        if (!ownedHabit) return NextResponse.json({ error: 'Habit not found' }, { status: 404 });
         if (Number.isNaN(targetDate.getTime())) return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
 
         const log = await HabitLog.findOneAndUpdate(
-            { habitId, date: targetDate },
+            { userId: user._id, habitId, date: targetDate },
             { $set: { completed, ...(typeof value === 'number' ? { value } : {}) } },
             { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
         ).lean();

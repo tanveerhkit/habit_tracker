@@ -4,12 +4,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-ink: #191918;
-  --color-muted: #6f706b;
-  --color-line: #e8e7e1;
-  --color-surface: #ffffff;
-  --color-accent: #6f7f55;
-  --color-accent-soft: #edf1e7;
+  --color-ink: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: 'DM Sans', system-ui, sans-serif;
   --font-display: 'Space Grotesk', system-ui, sans-serif;
 }
@@ -25,19 +25,41 @@
   --accent-strong: #53643d;
   --muted: #6f706b;
   --danger: #b66a63;
+  --grid-line: rgba(25, 25, 24, .025);
+}
+
+.dark {
+  --background: #171816;
+  --foreground: #f1f2eb;
+  --surface: #20221e;
+  --surface-muted: #292c26;
+  --line: #363a31;
+  --accent: #a8ba88;
+  --accent-soft: #303b2a;
+  --accent-strong: #c1d2a1;
+  --muted: #a0a59a;
+  --danger: #e49b91;
+  --grid-line: rgba(245, 247, 236, .035);
 }
 
 * { box-sizing: border-box; }
 
-html { background: var(--background); }
+html { background: var(--background); color-scheme: light; transition: background-color .2s ease, color .2s ease; }
+html.dark { color-scheme: dark; }
 
 body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
   overflow-x: hidden;
 }
+
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -.035em; }
+
+input, textarea { color-scheme: inherit; }
 
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
@@ -50,7 +72,7 @@ button:disabled { cursor: not-allowed; }
 .surface-soft { background: var(--surface-muted); border-radius: 14px; }
 
 .page-grid {
-  background-image: linear-gradient(to right, rgba(25,25,24,.025) 1px, transparent 1px), linear-gradient(to bottom, rgba(25,25,24,.025) 1px, transparent 1px);
+  background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
@@ -69,5 +91,5 @@ button:disabled { cursor: not-allowed; }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d2d3cb; border: 2px solid var(--background); border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #b8b9b0; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border: 2px solid var(--background); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 55%, transparent); }

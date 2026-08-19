@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IHabit extends Document {
+    userId: mongoose.Types.ObjectId;
     name: string;
     icon: string;
     color: string; // e.g., 'neon-red', 'neon-green' or hex
@@ -11,6 +12,7 @@ export interface IHabit extends Document {
 }
 
 const HabitSchema: Schema = new Schema({
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     name: { type: String, required: true },
     icon: { type: String, default: '📝' },
     color: { type: String, default: 'neon-blue' },

@@ -11,6 +11,7 @@ import {
   CircleHelp,
   Flag,
   LayoutDashboard,
+  LogOut,
   Menu,
   Pencil,
   Plus,
@@ -18,6 +19,7 @@ import {
   Target,
   Timer,
   Trash2,
+  UserCircle,
   X,
 } from 'lucide-react';
 import {
@@ -35,6 +37,8 @@ import {
 import StatsChart from './StatsChart';
 import { IHabit, IHabitLog } from '@/lib/types';
 import { readStored, writeStored } from '@/lib/clientStorage';
+import { useAuth } from '@/lib/auth-client';
+import ThemeToggle from './ThemeToggle';
 
 const FALLBACK_HABITS: IHabit[] = [];
 const ACCENT_COLORS = ['#6f7f55', '#b98659', '#9a7b9c', '#678da8', '#bd746b'];
@@ -48,6 +52,8 @@ function formatDurationDays(days: number) {
 }
 
 export default function Dashboard() {
+  const { user, logout } = useAuth();
+  const userScope = user.id;
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [habits, setHabits] = useState<IHabit[]>([]);
   const [logs, setLogs] = useState<IHabitLog[]>([]);
@@ -68,21 +74,21 @@ export default function Dashboard() {
     [calendarStart, calendarEnd],
   );
 
-  const persistHabits = (nextHabits: IHabit[]) => {
+  const persistHabits = useCallback((nextHabits: IHabit[]) => {
     setHabits(nextHabits);
-    writeStored('habits', nextHabits);
-  };
+    writeStored('habits', nextHabits, userScope);
+  }, [userScope]);
 
-  const persistLogs = (nextLogs: IHabitLog[]) => {
+  const persistLogs = useCallback((nextLogs: IHabitLog[]) => {
     setLogs(nextLogs);
-    writeStored('logs', nextLogs);
-  };
+    writeStored('logs', nextLogs, userScope);
+  }, [userScope]);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     setErrorMessage('');
-    const storedHabits = readStored<IHabit[]>('habits', FALLBACK_HABITS);
-    const storedLogs = readStored<IHabitLog[]>('logs', []);
+    const storedHabits = readStored<IHabit[]>('habits', FALLBACK_HABITS, userScope);
+    const storedLogs = readStored<IHabitLog[]>('logs', [], userScope);
 
     try {
       const habitsResponse = await fetch('/api/habits', { cache: 'no-store' });
@@ -104,7 +110,7 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, [calendarEnd, calendarStart]);
+  }, [calendarEnd, calendarStart, persistHabits, persistLogs, userScope]);
 
   useEffect(() => {
     void fetchData();
@@ -255,9 +261,9 @@ export default function Dashboard() {
   return (
     <div className="app-shell page-grid min-h-screen">
       <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-white/70 px-6 py-7 lg:flex">
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-surface/70 px-6 py-7 lg:flex">
           <Link href="/" className="mb-12 flex items-center gap-3" aria-label="Habitly home">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-white"><Sparkles size={17} /></span>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-foreground text-background"><Sparkles size={17} /></span>
             <span className="font-display text-lg font-semibold tracking-tight">Habitly</span>
           </Link>
           <nav className="space-y-1" aria-label="Primary navigation">
@@ -265,9 +271,9 @@ export default function Dashboard() {
             <Link href="/goals" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-surface-muted hover:text-ink"><Target size={17} /> Goals</Link>
             <Link href="/timer" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-surface-muted hover:text-ink"><Timer size={17} /> Focus timer</Link>
           </nav>
-          <div className="mt-auto rounded-2xl bg-ink p-4 text-white">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-white/50">Small steps</p>
-            <p className="text-sm leading-6 text-white/80">Consistency is built one checkmark at a time.</p>
+          <div className="mt-auto rounded-2xl bg-foreground p-4 text-background">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-background/50">Small steps</p>
+            <p className="text-sm leading-6 text-background/80">Consistency is built one checkmark at a time.</p>
             <Link href="/goals" className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#dfe8d4]">Set a goal <ArrowRight size={14} /></Link>
           </div>
         </aside>
@@ -277,12 +283,15 @@ export default function Dashboard() {
             <div>
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-muted lg:hidden"><Menu size={15} /> Habitly</div>
               <p className="mb-1 text-sm text-muted">{todayLabel}</p>
-              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Good morning, Tanveer<span className="text-accent">.</span></h1>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Good morning, {user.name.split(' ')[0]}<span className="text-accent">.</span></h1>
               <p className="mt-2 text-sm text-muted">A quiet view of your progress this month.</p>
             </div>
-            <div className="flex gap-2">
-              <Link href="/goals" className="hidden items-center gap-2 rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/40 sm:flex"><Flag size={15} /> Goals</Link>
-              <Link href="/timer" className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-strong"><Timer size={15} /> <span className="hidden sm:inline">Focus timer</span></Link>
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 pr-1 text-xs text-muted md:flex"><UserCircle size={16} /><span className="max-w-[120px] truncate">{user.email}</span></div>
+              <ThemeToggle />
+              <button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted transition hover:border-[#e4c9c5] hover:text-danger"><LogOut size={16} /></button>
+              <Link href="/goals" className="hidden items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/40 sm:flex"><Flag size={15} /> Goals</Link>
+              <Link href="/timer" className="flex items-center gap-2 rounded-xl bg-foreground px-3 py-2 text-sm font-semibold text-background shadow-sm transition hover:bg-accent-strong"><Timer size={15} /> <span className="hidden sm:inline">Focus timer</span></Link>
             </div>
           </header>
 
@@ -307,22 +316,22 @@ export default function Dashboard() {
               <div className="surface overflow-hidden shadow-[0_8px_30px_rgba(30,30,20,.03)]">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
                   <div><h2 className="font-display text-lg font-semibold text-ink">Your habits</h2><p className="mt-1 text-xs text-muted">Tap a day to mark it complete.</p></div>
-                  <button onClick={() => setIsAdding((value) => !value)} className="inline-flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong"><Plus size={16} /> Add habit</button>
+                  <button onClick={() => setIsAdding((value) => !value)} className="inline-flex items-center gap-2 rounded-xl bg-foreground px-3 py-2 text-sm font-semibold text-background transition hover:bg-accent-strong"><Plus size={16} /> Add habit</button>
                 </div>
                 {isAdding && <form onSubmit={createHabit} className="grid gap-2 border-b border-line bg-surface-muted p-4 sm:grid-cols-[1fr_1fr_auto]">
-                  <input autoFocus value={newHabitName} onChange={(event) => setNewHabitName(event.target.value)} placeholder="Habit name" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none" />
-                  <input value={newHabitDescription} onChange={(event) => setNewHabitDescription(event.target.value)} placeholder="Optional note" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none" />
-                  <button type="submit" disabled={isSaving} className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save'}</button>
+                  <input autoFocus value={newHabitName} onChange={(event) => setNewHabitName(event.target.value)} placeholder="Habit name" className="rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none" />
+                  <input value={newHabitDescription} onChange={(event) => setNewHabitDescription(event.target.value)} placeholder="Optional note" className="rounded-xl border border-line bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none" />
+                  <button type="submit" disabled={isSaving} className="rounded-xl bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save'}</button>
                 </form>}
                 <div className="divide-y divide-line">
                   {habits.map((habit, index) => {
                     const completedToday = getLog(habit._id, new Date())?.completed;
                     const monthlyCount = currentMonthLogs.filter((log) => log.habitId === habit._id && log.completed).length;
-                    return <div key={habit._id} className="group flex items-center gap-3 px-5 py-4 transition hover:bg-[#fbfbf8]">
+                    return <div key={habit._id} className="group flex items-center gap-3 px-5 py-4 transition hover:bg-surface-muted">
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold text-white" style={{ background: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>{habit.icon || '•'}</span>
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{habit.name}</p><p className="mt-1 truncate text-xs text-muted">{habit.description || `${monthlyCount} check-ins this month`}</p></div>
                       <span className="hidden text-xs text-muted sm:block">{monthlyCount} days</span>
-                      <button onClick={() => toggleHabit(habit._id, new Date())} aria-label={`${completedToday ? 'Uncomplete' : 'Complete'} ${habit.name} today`} className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border transition ${completedToday ? 'border-accent bg-accent text-white' : 'border-line bg-white text-transparent hover:border-accent hover:text-accent'}`}><Check size={16} strokeWidth={2.5} /></button>
+                      <button onClick={() => toggleHabit(habit._id, new Date())} aria-label={`${completedToday ? 'Uncomplete' : 'Complete'} ${habit.name} today`} className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border transition ${completedToday ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-transparent hover:border-accent hover:text-accent'}`}><Check size={16} strokeWidth={2.5} /></button>
                       <button onClick={() => setEditingHabit(habit)} aria-label={`Edit ${habit.name}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted opacity-100 transition hover:bg-surface-muted hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"><Pencil size={15} /></button>
                     </div>;
                   })}
@@ -337,7 +346,7 @@ export default function Dashboard() {
             </div>
 
             <aside className="space-y-6">
-              <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Monthly goal</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Show up often</h2></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Target size={17} /></span></div><div className="mt-6 flex items-center gap-5"><div className="grid h-28 w-28 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(var(--accent) ${completionRate}%, var(--surface-muted) 0)` }}><div className="grid h-20 w-20 place-items-center rounded-full bg-white"><span className="font-display text-xl font-semibold text-ink">{completionRate}%</span></div></div><div><p className="text-sm font-semibold text-ink">{totalCompleted} completed</p><p className="mt-1 text-xs leading-5 text-muted">Every completed day compounds into something bigger.</p></div></div></div>
+              <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Monthly goal</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Show up often</h2></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Target size={17} /></span></div><div className="mt-6 flex items-center gap-5"><div className="grid h-28 w-28 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(var(--accent) ${completionRate}%, var(--surface-muted) 0)` }}><div className="grid h-20 w-20 place-items-center rounded-full bg-surface"><span className="font-display text-xl font-semibold text-ink">{completionRate}%</span></div></div><div><p className="text-sm font-semibold text-ink">{totalCompleted} completed</p><p className="mt-1 text-xs leading-5 text-muted">Every completed day compounds into something bigger.</p></div></div></div>
               <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Consistency</p><h2 className="mt-2 font-display text-lg font-semibold text-ink">By week</h2></div><BarChart3 size={18} className="text-muted" /></div><div className="space-y-4">{weeklyStats.map((week) => { const percent = week.possible ? Math.round((week.completed / week.possible) * 100) : 0; return <div key={week.label}><div className="mb-1.5 flex justify-between text-xs"><span className="font-medium text-ink">{week.label}</span><span className="text-muted">{percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>; })}</div></div>
               <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-3 flex items-center gap-2 text-muted"><CircleHelp size={16} /><span className="text-xs font-semibold uppercase tracking-[.14em]">A gentle reminder</span></div><p className="text-sm leading-6 text-ink">You do not need a perfect month. You only need a next check-in.</p></div>
               <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Daily overview</p><h2 className="mt-2 font-display text-lg font-semibold text-ink">Completions</h2></div><BarChart3 size={18} className="text-muted" /></div><div className="h-44"><StatsChart logs={currentMonthLogs} totalHabits={habits.length} currentDate={currentDate} /></div></div>
@@ -346,7 +355,7 @@ export default function Dashboard() {
         </main>
       </div>
 
-      {editingHabit && <div className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Edit habit"><form onSubmit={updateHabit} className="surface w-full max-w-md p-5 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Edit habit</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Keep it honest.</h2></div><button type="button" onClick={() => setEditingHabit(null)} aria-label="Close edit dialog" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><X size={17} /></button></div><label className="mb-4 block text-sm font-semibold text-ink">Name<input value={editingHabit.name} onChange={(event) => setEditingHabit({ ...editingHabit, name: event.target.value })} className="mt-2 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" /></label><label className="mb-6 block text-sm font-semibold text-ink">Note<textarea value={editingHabit.description || ''} onChange={(event) => setEditingHabit({ ...editingHabit, description: event.target.value })} rows={3} className="mt-2 w-full resize-none rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" placeholder="A short note to keep you on track" /></label><div className="flex items-center justify-between gap-3"><button type="button" onClick={deleteHabit} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#b66a63] hover:bg-[#fbefed]"><Trash2 size={15} /> Delete</button><div className="flex gap-2"><button type="button" onClick={() => setEditingHabit(null)} className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-muted">Cancel</button><button type="submit" disabled={isSaving} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save changes'}</button></div></div></form></div>}
+      {editingHabit && <div className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Edit habit"><form onSubmit={updateHabit} className="surface w-full max-w-md p-5 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Edit habit</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Keep it honest.</h2></div><button type="button" onClick={() => setEditingHabit(null)} aria-label="Close edit dialog" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><X size={17} /></button></div><label className="mb-4 block text-sm font-semibold text-ink">Name<input value={editingHabit.name} onChange={(event) => setEditingHabit({ ...editingHabit, name: event.target.value })} className="mt-2 w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" /></label><label className="mb-6 block text-sm font-semibold text-ink">Note<textarea value={editingHabit.description || ''} onChange={(event) => setEditingHabit({ ...editingHabit, description: event.target.value })} rows={3} className="mt-2 w-full resize-none rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" placeholder="A short note to keep you on track" /></label><div className="flex items-center justify-between gap-3"><button type="button" onClick={deleteHabit} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#b66a63] hover:bg-[#fbefed]"><Trash2 size={15} /> Delete</button><div className="flex gap-2"><button type="button" onClick={() => setEditingHabit(null)} className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-muted">Cancel</button><button type="submit" disabled={isSaving} className="rounded-xl bg-foreground px-4 py-2 text-sm font-semibold text-background hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save changes'}</button></div></div></form></div>}
     </div>
   );
 }
