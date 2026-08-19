@@ -13,6 +13,8 @@ Habitly is a minimal, responsive habit tracker for building consistency without 
 - Create an account and sign in with email and password.
 - Keep habits, completion logs, and focus sessions isolated per authenticated account.
 - Use the light/dark mode toggle with a preference that persists across sessions.
+- Export habits, check-ins, focus sessions, and goals as an account-scoped JSON backup.
+- Import a JSON backup with validation, duplicate-safe merging, and automatic dashboard refresh.
 - Responsive layouts, accessible labels, keyboard-friendly controls, visible focus states, reduced-motion support, and installable PWA metadata.
 - Account-scoped browser-storage fallback for local development when MongoDB is unavailable after authentication.
 
@@ -76,6 +78,17 @@ Existing records created before authentication do not have an owner and are inte
 | `/api/habits` | Authenticated habit CRUD with account-scoped queries |
 | `/api/logs` | Authenticated date-range reads and per-user completion upserts |
 | `/api/timer` | Authenticated focus-session creation and range-based reads |
+| `/api/backup` | Authenticated JSON export and validated account-scoped import |
+
+## Backup and restore
+
+Use **Export** in the dashboard header to download a JSON file containing the current user’s habits, completion logs, timer sessions, and locally stored goals. Use the upload control to restore a backup. Imports merge into the signed-in account, update matching habit records, skip invalid records, avoid duplicate timer sessions, and refresh the dashboard after completion. Backup files are limited to 10 MB in the browser.
+
+Backups are account-specific: the API never accepts a user ID from the file and always writes imported records under the currently authenticated account.
+
+## Deployment
+
+The project is compatible with Vercel’s Next.js runtime. Configure `MONGODB_URI` and `AUTH_SECRET` as production environment variables in the deployment provider before publishing. Do not commit `.env.local` or production secrets to Git.
 
 ## Scripts
 

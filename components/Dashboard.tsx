@@ -39,6 +39,7 @@ import { IHabit, IHabitLog } from '@/lib/types';
 import { readStored, writeStored } from '@/lib/clientStorage';
 import { useAuth } from '@/lib/auth-client';
 import ThemeToggle from './ThemeToggle';
+import BackupControls from './BackupControls';
 
 const FALLBACK_HABITS: IHabit[] = [];
 const ACCENT_COLORS = ['#6f7f55', '#b98659', '#9a7b9c', '#678da8', '#bd746b'];
@@ -288,6 +289,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 pr-1 text-xs text-muted md:flex"><UserCircle size={16} /><span className="max-w-[120px] truncate">{user.email}</span></div>
+              <BackupControls />
               <ThemeToggle />
               <button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted transition hover:border-[#e4c9c5] hover:text-danger"><LogOut size={16} /></button>
               <Link href="/goals" className="hidden items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/40 sm:flex"><Flag size={15} /> Goals</Link>
