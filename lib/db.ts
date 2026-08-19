@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/habit-tracker';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 interface MongooseCache {
     conn: typeof mongoose | null;
@@ -18,6 +18,9 @@ if (!cached) {
 }
 
 async function dbConnect() {
+    if (!MONGODB_URI) {
+        throw new Error('MONGODB_URI is not configured');
+    }
     if (cached!.conn) {
         return cached!.conn;
     }

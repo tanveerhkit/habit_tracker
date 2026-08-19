@@ -1,503 +1,352 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { IHabit, IHabitLog } from '@/lib/types';
-import WeeklyGrid from './WeeklyGrid';
-import { cn } from '@/lib/utils';
-import { addMonths, subMonths, format, startOfMonth, endOfMonth, isSameDay, isSameMonth, parseISO, startOfWeek, endOfWeek } from 'date-fns';
+import {
+  ArrowRight,
+  BarChart3,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Flag,
+  LayoutDashboard,
+  Menu,
+  Pencil,
+  Plus,
+  Sparkles,
+  Target,
+  Timer,
+  Trash2,
+  X,
+} from 'lucide-react';
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  parseISO,
+  startOfMonth,
+  startOfWeek,
+} from 'date-fns';
 import StatsChart from './StatsChart';
-import { getWeeksInMonth } from '@/lib/dateUtils';
+import { IHabit, IHabitLog } from '@/lib/types';
+import { readStored, writeStored } from '@/lib/clientStorage';
+
+const FALLBACK_HABITS: IHabit[] = [];
+const ACCENT_COLORS = ['#6f7f55', '#b98659', '#9a7b9c', '#678da8', '#bd746b'];
+
+function logDate(log: IHabitLog) {
+  return typeof log.date === 'string' ? parseISO(log.date) : new Date(log.date);
+}
+
+function formatDurationDays(days: number) {
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
+}
 
 export default function Dashboard() {
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [habits, setHabits] = useState<IHabit[]>([]);
-    const [logs, setLogs] = useState<IHabitLog[]>([]);
-    const [newHabitName, setNewHabitName] = useState('');
-    const [newHabitDescription, setNewHabitDescription] = useState('');
-    const [editingHabit, setEditingHabit] = useState<IHabit | null>(null);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const habitScrollRef = useRef<HTMLDivElement>(null);
-    const gridScrollRef = useRef<HTMLDivElement>(null);
-    const [gridSpacer, setGridSpacer] = useState(0);
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [confirmDelete, setConfirmDelete] = useState(false);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [habits, setHabits] = useState<IHabit[]>([]);
+  const [logs, setLogs] = useState<IHabitLog[]>([]);
+  const [newHabitName, setNewHabitName] = useState('');
+  const [newHabitDescription, setNewHabitDescription] = useState('');
+  const [editingHabit, setEditingHabit] = useState<IHabit | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-    const promptEdit = (habit: IHabit) => {
-        setEditingHabit(habit);
-        setConfirmDelete(false);
-        setIsEditModalOpen(true);
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const calendarDays = useMemo(
+    () => eachDayOfInterval({ start: calendarStart, end: calendarEnd }),
+    [calendarStart, calendarEnd],
+  );
+
+  const persistHabits = (nextHabits: IHabit[]) => {
+    setHabits(nextHabits);
+    writeStored('habits', nextHabits);
+  };
+
+  const persistLogs = (nextLogs: IHabitLog[]) => {
+    setLogs(nextLogs);
+    writeStored('logs', nextLogs);
+  };
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+    const storedHabits = readStored<IHabit[]>('habits', FALLBACK_HABITS);
+    const storedLogs = readStored<IHabitLog[]>('logs', []);
+
+    try {
+      const habitsResponse = await fetch('/api/habits', { cache: 'no-store' });
+      if (!habitsResponse.ok) throw new Error('Habit API unavailable');
+      const habitsData = await habitsResponse.json();
+      const nextHabits = Array.isArray(habitsData) ? habitsData : storedHabits;
+      persistHabits(nextHabits);
+
+      const start = calendarStart.toISOString();
+      const end = calendarEnd.toISOString();
+      const logsResponse = await fetch(`/api/logs?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`, { cache: 'no-store' });
+      if (!logsResponse.ok) throw new Error('Log API unavailable');
+      const logsData = await logsResponse.json();
+      persistLogs(Array.isArray(logsData) ? logsData : storedLogs);
+    } catch {
+      setHabits(storedHabits);
+      setLogs(storedLogs);
+      setErrorMessage('Offline mode — your changes are saved in this browser.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calendarEnd, calendarStart]);
+
+  useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
+
+  const getLog = useCallback((habitId: string, date: Date) =>
+    logs.find((log) => log.habitId === habitId && isSameDay(logDate(log), date)), [logs]);
+
+  const toggleHabit = async (habitId: string, date: Date) => {
+    const existingLog = getLog(habitId, date);
+    const completed = !existingLog?.completed;
+    const nextLog: IHabitLog = {
+      _id: existingLog?._id ?? `local-${habitId}-${date.toISOString()}`,
+      habitId,
+      date: date.toISOString(),
+      completed,
+    };
+    const nextLogs = existingLog
+      ? logs.map((log) => (log._id === existingLog._id ? nextLog : log))
+      : [...logs, nextLog];
+    persistLogs(nextLogs);
+
+    try {
+      const response = await fetch('/api/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ habitId, date: date.toISOString(), completed }),
+      });
+      if (!response.ok) throw new Error('Unable to save log');
+      const savedLog = await response.json();
+      persistLogs(nextLogs.map((log) => (log._id === nextLog._id ? savedLog : log)));
+    } catch {
+      setErrorMessage('Saved locally. Connect MongoDB to sync this change.');
+    }
+  };
+
+  const createHabit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = newHabitName.trim();
+    if (!name) return;
+
+    setIsSaving(true);
+    const localHabit: IHabit = {
+      _id: `local-${Date.now()}`,
+      name,
+      description: newHabitDescription.trim(),
+      icon: '•',
+      color: 'accent',
+      goal: 0,
+      order: habits.length,
     };
 
-    const handleUpdateHabit = async () => {
-        if (!editingHabit) return;
-        try {
-            const res = await fetch('/api/habits', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(editingHabit)
-            });
-            const updated = await res.json();
-            setHabits(prev => prev.map(h => h._id === updated._id ? updated : h));
-            setIsEditModalOpen(false);
-            setEditingHabit(null);
-        } catch (error) {
-            console.error("Failed to update habit", error);
-        }
-    };
+    try {
+      const response = await fetch('/api/habits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description: newHabitDescription.trim(), icon: '•', color: 'accent', order: habits.length }),
+      });
+      if (!response.ok) throw new Error('Unable to create habit');
+      const created = await response.json();
+      persistHabits([...habits, created]);
+    } catch {
+      persistHabits([...habits, localHabit]);
+      setErrorMessage('Habit added locally. Connect MongoDB to sync it.');
+    } finally {
+      setNewHabitName('');
+      setNewHabitDescription('');
+      setIsAdding(false);
+      setIsSaving(false);
+    }
+  };
 
-    const handleDeleteHabit = async () => {
-        if (!editingHabit?._id) return;
+  const updateHabit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingHabit || !editingHabit.name.trim()) return;
+    setIsSaving(true);
+    const nextHabits = habits.map((habit) => (habit._id === editingHabit._id ? editingHabit : habit));
+    persistHabits(nextHabits);
 
-        setIsDeleting(true);
-        try {
-            const res = await fetch(`/api/habits?id=${editingHabit._id}`, { method: 'DELETE' });
-            
-            if (res.ok) {
-                setHabits(prev => prev.filter(h => h._id !== editingHabit._id));
-                setIsEditModalOpen(false);
-                setEditingHabit(null);
-                setConfirmDelete(false);
-            } else {
-                const data = await res.json();
-                console.error('Delete failed:', data.error);
-            }
-        } catch (error) {
-            console.error("Failed to delete habit", error);
-        } finally {
-            setIsDeleting(false);
-        }
-    };
+    try {
+      const response = await fetch('/api/habits', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingHabit),
+      });
+      if (!response.ok) throw new Error('Unable to update habit');
+      const saved = await response.json();
+      persistHabits(nextHabits.map((habit) => (habit._id === editingHabit._id ? saved : habit)));
+    } catch {
+      setErrorMessage('Updated locally. Connect MongoDB to sync it.');
+    } finally {
+      setEditingHabit(null);
+      setIsSaving(false);
+    }
+  };
 
-    // Fetch data (habits and logs)
-    const fetchData = useCallback(async () => {
-        try {
-            // Fetch Habits
-            const habitsRes = await fetch('/api/habits');
-            const habitsData = await habitsRes.json();
-            if (Array.isArray(habitsData)) {
-                setHabits(habitsData);
-            } else {
-                console.error("Habits API returned non-array:", habitsData);
-                setHabits([]);
-            }
+  const deleteHabit = async () => {
+    if (!editingHabit) return;
+    const deletedId = editingHabit._id;
+    persistHabits(habits.filter((habit) => habit._id !== deletedId));
+    persistLogs(logs.filter((log) => log.habitId !== deletedId));
+    setEditingHabit(null);
 
-            // Fetch Logs (Full Range)
-            const start = startOfWeek(startOfMonth(currentDate), { weekStartsOn: 0 }).toISOString();
-            const end = endOfWeek(endOfMonth(currentDate), { weekStartsOn: 0 }).toISOString();
-            const logsRes = await fetch(`/api/logs?startDate=${start}&endDate=${end}`);
-            const logsData = await logsRes.json();
-            if (Array.isArray(logsData)) {
-                setLogs(logsData);
-            } else {
-                console.error("Logs API returned non-array:", logsData);
-                setLogs([]);
-            }
+    try {
+      const response = await fetch(`/api/habits?id=${encodeURIComponent(deletedId)}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Unable to delete habit');
+    } catch {
+      setErrorMessage('Removed locally. Connect MongoDB to sync it.');
+    }
+  };
 
-        } catch (error) {
-            console.error("Failed to fetch data", error);
-            setHabits([]);
-            setLogs([]);
-        }
-    }, [currentDate]);
+  const currentMonthLogs = useMemo(
+    () => logs.filter((log) => isSameMonth(logDate(log), currentDate) && habits.some((habit) => habit._id === log.habitId)),
+    [currentDate, habits, logs],
+  );
+  const totalCompleted = currentMonthLogs.filter((log) => log.completed).length;
+  const totalPossible = habits.length * monthEnd.getDate();
+  const completionRate = totalPossible ? Math.round((totalCompleted / totalPossible) * 100) : 0;
+  const todayCompleted = habits.filter((habit) => getLog(habit._id, new Date())?.completed).length;
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+  const currentStreak = useMemo(() => {
+    let streak = 0;
+    for (let index = 0; index < 366; index += 1) {
+      const day = new Date();
+      day.setDate(day.getDate() - index);
+      const completed = habits.length > 0 && habits.every((habit) => getLog(habit._id, day)?.completed);
+      if (!completed) break;
+      streak += 1;
+    }
+    return streak;
+  }, [getLog, habits, logs]);
 
-    // Keep habit list and weekly grid vertically in sync so rows stay aligned
-    useEffect(() => {
-        const habitEl = habitScrollRef.current;
-        const gridEl = gridScrollRef.current;
-        if (!habitEl || !gridEl) return;
+  const weeklyStats = useMemo(() => {
+    const weeks: { label: string; completed: number; possible: number }[] = [];
+    for (let index = 0; index < calendarDays.length; index += 7) {
+      const days = calendarDays.slice(index, index + 7).filter((day) => isSameMonth(day, currentDate));
+      const completed = days.reduce(
+        (count, day) => count + habits.filter((habit) => getLog(habit._id, day)?.completed).length,
+        0,
+      );
+      weeks.push({ label: `Week ${weeks.length + 1}`, completed, possible: days.length * habits.length });
+    }
+    return weeks;
+  }, [calendarDays, currentDate, getLog, habits, logs]);
 
-        let syncingFromHabits = false;
-        let syncingFromGrid = false;
+  const todayLabel = format(new Date(), 'EEEE, MMM d');
 
-        const syncFromHabits = () => {
-            if (syncingFromGrid) return;
-            syncingFromHabits = true;
-            const habitRange = habitEl.scrollHeight - habitEl.clientHeight;
-            const gridRange = gridEl.scrollHeight - gridEl.clientHeight;
-            const ratio = habitRange > 0 ? habitEl.scrollTop / habitRange : 0;
-            gridEl.scrollTop = gridRange > 0 ? ratio * gridRange : 0;
-            requestAnimationFrame(() => { syncingFromHabits = false; });
-        };
+  return (
+    <div className="app-shell page-grid min-h-screen">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-line bg-white/70 px-6 py-7 lg:flex">
+          <Link href="/" className="mb-12 flex items-center gap-3" aria-label="Habitly home">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-white"><Sparkles size={17} /></span>
+            <span className="font-display text-lg font-semibold tracking-tight">Habitly</span>
+          </Link>
+          <nav className="space-y-1" aria-label="Primary navigation">
+            <Link href="/" className="flex items-center gap-3 rounded-xl bg-accent-soft px-3 py-2.5 text-sm font-semibold text-accent-strong"><LayoutDashboard size={17} /> Overview</Link>
+            <Link href="/goals" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-surface-muted hover:text-ink"><Target size={17} /> Goals</Link>
+            <Link href="/timer" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted transition hover:bg-surface-muted hover:text-ink"><Timer size={17} /> Focus timer</Link>
+          </nav>
+          <div className="mt-auto rounded-2xl bg-ink p-4 text-white">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-white/50">Small steps</p>
+            <p className="text-sm leading-6 text-white/80">Consistency is built one checkmark at a time.</p>
+            <Link href="/goals" className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[#dfe8d4]">Set a goal <ArrowRight size={14} /></Link>
+          </div>
+        </aside>
 
-        const syncFromGrid = () => {
-            if (syncingFromHabits) return;
-            syncingFromGrid = true;
-            const habitRange = habitEl.scrollHeight - habitEl.clientHeight;
-            const gridRange = gridEl.scrollHeight - gridEl.clientHeight;
-            const ratio = gridRange > 0 ? gridEl.scrollTop / gridRange : 0;
-            habitEl.scrollTop = habitRange > 0 ? ratio * habitRange : 0;
-            requestAnimationFrame(() => { syncingFromGrid = false; });
-        };
+        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+          <header className="mb-7 flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-muted lg:hidden"><Menu size={15} /> Habitly</div>
+              <p className="mb-1 text-sm text-muted">{todayLabel}</p>
+              <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Good morning, Tanveer<span className="text-accent">.</span></h1>
+              <p className="mt-2 text-sm text-muted">A quiet view of your progress this month.</p>
+            </div>
+            <div className="flex gap-2">
+              <Link href="/goals" className="hidden items-center gap-2 rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/40 sm:flex"><Flag size={15} /> Goals</Link>
+              <Link href="/timer" className="flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-strong"><Timer size={15} /> <span className="hidden sm:inline">Focus timer</span></Link>
+            </div>
+          </header>
 
-        habitEl.addEventListener('scroll', syncFromHabits, { passive: true });
-        gridEl.addEventListener('scroll', syncFromGrid, { passive: true });
+          {errorMessage && <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-[#d8e2cc] bg-accent-soft px-4 py-3 text-sm text-accent-strong"><span>{errorMessage}</span><button onClick={() => setErrorMessage('')} aria-label="Dismiss message"><X size={16} /></button></div>}
 
-        return () => {
-            habitEl.removeEventListener('scroll', syncFromHabits);
-            gridEl.removeEventListener('scroll', syncFromGrid);
-        };
-    }, []);
+          <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: 'Monthly completion', value: `${completionRate}%`, note: `${totalCompleted} of ${totalPossible || 0} check-ins`, icon: BarChart3 },
+              { label: 'Today', value: `${todayCompleted}/${habits.length}`, note: habits.length ? 'habits completed' : 'add your first habit', icon: Check },
+              { label: 'Current streak', value: formatDurationDays(currentStreak), note: currentStreak ? 'keep the rhythm going' : 'start with today', icon: Sparkles },
+              { label: 'Active habits', value: String(habits.length), note: 'habits on your list', icon: Target },
+            ].map(({ label, value, note, icon: Icon }) => (
+              <div key={label} className="surface flex items-start justify-between p-4 shadow-[0_8px_30px_rgba(30,30,20,.03)]">
+                <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">{label}</p><p className="mt-3 font-display text-2xl font-semibold tracking-tight text-ink">{isLoading ? '—' : value}</p><p className="mt-1 text-xs text-muted">{note}</p></div>
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Icon size={17} /></span>
+              </div>
+            ))}
+          </section>
 
-    // Match scrollable heights between habits list and weekly grid by adding dynamic spacer to the grid
-    useLayoutEffect(() => {
-        const alignHeights = () => {
-            const habitEl = habitScrollRef.current;
-            const gridEl = gridScrollRef.current;
-            if (!habitEl || !gridEl) return;
-            const diff = habitEl.scrollHeight - gridEl.scrollHeight;
-            const target = diff > 0 ? diff : 0;
-            setGridSpacer(prev => (prev === target ? prev : target));
-        };
-
-        alignHeights();
-        const rafId = requestAnimationFrame(alignHeights); // ensure post-layout measurement
-        window.addEventListener('resize', alignHeights);
-        return () => {
-            cancelAnimationFrame(rafId);
-            window.removeEventListener('resize', alignHeights);
-        };
-    // gridSpacer intentionally excluded: including it causes an infinite update loop
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [habits, logs]);
-
-    const toggleHabit = async (habitId: string, date: Date) => {
-        const dateStr = date.toISOString();
-        // Use precise matching for logs
-        const existingLogIndex = logs.findIndex(l => l.habitId === habitId && isSameDay(parseISO(l.date), date));
-        const isCompleted = existingLogIndex > -1 ? logs[existingLogIndex].completed : false;
-        const newValue = !isCompleted;
-
-        const newLogs = [...logs];
-        if (existingLogIndex > -1) {
-            newLogs[existingLogIndex] = { ...newLogs[existingLogIndex], completed: newValue };
-        } else {
-            newLogs.push({ _id: 'temp', habitId, date: dateStr, completed: newValue });
-        }
-        setLogs(newLogs);
-
-        try {
-            const res = await fetch('/api/logs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ habitId, date: dateStr, completed: newValue })
-            });
-            const updatedLog = await res.json();
-            // Replace temp log with real one (use isSameDay for timezone-safe comparison)
-            setLogs(prev => prev.map(l => (l.habitId === habitId && isSameDay(parseISO(l.date), date)) ? updatedLog : l));
-        } catch (error) {
-            console.error("Failed to toggle", error);
-            fetchData();
-        }
-    };
-
-    const createHabit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newHabitName.trim()) return;
-
-        try {
-            const res = await fetch('/api/habits', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: newHabitName,
-                    description: newHabitDescription || '',
-                    icon: '⚡',
-                    color: 'neon-blue'
-                })
-            });
-            const newHabit = await res.json();
-            setHabits([...habits, newHabit]);
-            setNewHabitName('');
-            setNewHabitDescription('');
-        } catch (error) {
-            console.error("Failed to create habit", error);
-        }
-    };
-
-    // Stats for the month
-    const activeLogs = useMemo(() => {
-        return logs.filter(log => habits.some(h => h._id === log.habitId));
-    }, [logs, habits]);
-
-    const daysInCurrentMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-    const totalPossible = habits.length * daysInCurrentMonth;
-    // Only count completed logs within the current month (activeLogs may include padding days from adjacent months)
-    const totalCompleted = activeLogs.filter(l => l.completed && isSameMonth(parseISO(l.date), currentDate)).length;
-    const completionRate = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
-
-    // Weekly Stats Calculation
-    const weeks = useMemo(() => getWeeksInMonth(currentDate), [currentDate]);
-
-    const weeklyStats = useMemo(() => {
-        // weeks is Array<Date[]>
-        return weeks.map((weekDays, index) => {
-            // weekDays contains all valid dates now (including padding dates)
-            const weekPossible = habits.length * weekDays.length;
-            let weekCompleted = 0;
-
-            weekDays.forEach(day => {
-                habits.forEach(habit => {
-                    const log = activeLogs.find(l => l.habitId === habit._id && isSameDay(parseISO(l.date), day));
-                    if (log?.completed) weekCompleted++;
-                });
-            });
-
-            // completionRate calculation
-            const pct = weekPossible > 0 ? Math.round((weekCompleted / weekPossible) * 100) : 0;
-
-            return {
-                weekIndex: index + 1,
-                completed: weekCompleted,
-                possible: weekPossible,
-                completionRate: pct
-            };
-        });
-    }, [weeks, habits, activeLogs]);
-
-    const weekColors = [
-        'bg-neon-red', 'bg-neon-green', 'bg-neon-blue', 'bg-neon-purple', 'bg-neon-orange'
-    ];
-    const weekTextColors = [
-        'text-neon-red', 'text-neon-green', 'text-neon-blue', 'text-neon-purple', 'text-neon-orange'
-    ];
-
-    return (
-        <div className="flex flex-col h-full w-full p-2 md:p-4 gap-4 max-w-[1800px] mx-auto relative overflow-y-auto md:overflow-hidden">
-            {/* Edit Modal Overlay */}
-            {isEditModalOpen && editingHabit && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="w-[90%] md:w-[400px] glass p-6 flex flex-col gap-4 border border-neon-blue/50 shadow-[0_0_30px_rgba(0,255,255,0.2)]">
-                        <h2 className="text-xl font-bold text-white mb-2">Edit Habit</h2>
-
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-gray-400">Habit Name</label>
-                            <input
-                                className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-neon-blue transition-colors"
-                                value={editingHabit.name}
-                                onChange={e => setEditingHabit({ ...editingHabit, name: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <label className="text-xs text-gray-400">Notes / Description</label>
-                            <textarea
-                                className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-white outline-none focus:border-neon-blue transition-colors min-h-[100px] text-sm resize-none"
-                                value={editingHabit.description || ''}
-                                onChange={e => setEditingHabit({ ...editingHabit, description: e.target.value })}
-                                placeholder="Add notes, goals, or reminders..."
-                            />
-                        </div>
-
-                        <div className="flex justify-between mt-2">
-                            {confirmDelete ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-red-400">Sure?</span>
-                                    <button
-                                        onClick={handleDeleteHabit}
-                                        disabled={isDeleting}
-                                        className="px-3 py-1.5 text-xs font-bold bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
-                                    >
-                                        {isDeleting ? 'Deleting...' : 'Yes, Delete'}
-                                    </button>
-                                    <button
-                                        onClick={() => setConfirmDelete(false)}
-                                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => setConfirmDelete(true)}
-                                    className="px-4 py-2 text-sm text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                                >
-                                    Delete Habit
-                                </button>
-                            )}
-                            {!confirmDelete && (
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => { setIsEditModalOpen(false); setConfirmDelete(false); }}
-                                        className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleUpdateHabit}
-                                        className="px-4 py-2 text-sm bg-neon-blue/20 text-neon-blue border border-neon-blue/50 rounded hover:bg-neon-blue/40 transition-all font-bold"
-                                    >
-                                        Save Changes
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+          <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.75fr)]">
+            <div className="space-y-6">
+              <div className="surface overflow-hidden shadow-[0_8px_30px_rgba(30,30,20,.03)]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+                  <div><h2 className="font-display text-lg font-semibold text-ink">Your habits</h2><p className="mt-1 text-xs text-muted">Tap a day to mark it complete.</p></div>
+                  <button onClick={() => setIsAdding((value) => !value)} className="inline-flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong"><Plus size={16} /> Add habit</button>
                 </div>
-            )}
-
-            {/* Top Header */}
-            <div className="flex flex-col md:grid md:grid-cols-12 gap-4 h-auto md:h-[140px] shrink-0">
-                <div className="md:col-span-2 h-[100px] md:h-auto glass flex flex-col items-center justify-center text-center relative group cursor-pointer" onClick={() => setCurrentDate(new Date())}>
-                    <div className="absolute top-2 left-2 text-xs text-gray-500 hover:text-white z-20" onClick={(e) => { e.stopPropagation(); setCurrentDate(subMonths(currentDate, 1)); }}>◀</div>
-                    <div className="absolute top-2 right-2 text-xs text-gray-500 hover:text-white z-20" onClick={(e) => { e.stopPropagation(); setCurrentDate(addMonths(currentDate, 1)); }}>▶</div>
-
-                    <h2 className="text-3xl font-bold text-gray-300 uppercase">{format(currentDate, 'MMMM')}</h2>
-                    <h1 className="text-5xl font-extrabold text-white">{format(currentDate, 'yyyy')}</h1>
+                {isAdding && <form onSubmit={createHabit} className="grid gap-2 border-b border-line bg-surface-muted p-4 sm:grid-cols-[1fr_1fr_auto]">
+                  <input autoFocus value={newHabitName} onChange={(event) => setNewHabitName(event.target.value)} placeholder="Habit name" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none" />
+                  <input value={newHabitDescription} onChange={(event) => setNewHabitDescription(event.target.value)} placeholder="Optional note" className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none" />
+                  <button type="submit" disabled={isSaving} className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save'}</button>
+                </form>}
+                <div className="divide-y divide-line">
+                  {habits.map((habit, index) => {
+                    const completedToday = getLog(habit._id, new Date())?.completed;
+                    const monthlyCount = currentMonthLogs.filter((log) => log.habitId === habit._id && log.completed).length;
+                    return <div key={habit._id} className="group flex items-center gap-3 px-5 py-4 transition hover:bg-[#fbfbf8]">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold text-white" style={{ background: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>{habit.icon || '•'}</span>
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{habit.name}</p><p className="mt-1 truncate text-xs text-muted">{habit.description || `${monthlyCount} check-ins this month`}</p></div>
+                      <span className="hidden text-xs text-muted sm:block">{monthlyCount} days</span>
+                      <button onClick={() => toggleHabit(habit._id, new Date())} aria-label={`${completedToday ? 'Uncomplete' : 'Complete'} ${habit.name} today`} className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border transition ${completedToday ? 'border-accent bg-accent text-white' : 'border-line bg-white text-transparent hover:border-accent hover:text-accent'}`}><Check size={16} strokeWidth={2.5} /></button>
+                      <button onClick={() => setEditingHabit(habit)} aria-label={`Edit ${habit.name}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted opacity-100 transition hover:bg-surface-muted hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"><Pencil size={15} /></button>
+                    </div>;
+                  })}
+                  {!isLoading && habits.length === 0 && <div className="px-5 py-12 text-center"><div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-accent"><Sparkles size={20} /></div><p className="text-sm font-semibold text-ink">Your list is clear.</p><p className="mx-auto mt-1 max-w-xs text-sm text-muted">Add one small habit to start building your daily rhythm.</p></div>}
                 </div>
+              </div>
 
-                <div className="md:col-span-8 h-[200px] md:h-auto glass relative overflow-hidden p-2 flex flex-col order-3 md:order-none">
-                    <div className="absolute top-2 left-0 right-0 text-center uppercase text-xs font-bold tracking-widest text-gray-400 z-10">Daily Habits Completed</div>
-                    <div className="flex-1 mt-4 w-full h-full min-h-[120px]">
-                        <StatsChart logs={activeLogs} totalHabits={habits.length} currentDate={currentDate} />
-                    </div>
-                </div>
-
-                <div className="md:col-span-2 h-[100px] md:h-auto glass flex flex-col items-center justify-center gap-2">
-                    <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Level Up Tracker</div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Tanveer</h3>
-
-                    <div className="flex gap-2">
-                        <Link href="/timer" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-blue hover:bg-neon-blue/20 hover:border-neon-blue transition-all flex items-center gap-2">
-                            <span>⏱</span> Stopwatch
-                        </Link>
-                        <Link href="/goals" className="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-neon-purple hover:bg-neon-purple/20 hover:border-neon-purple transition-all flex items-center gap-2">
-                            <span>🎯</span> Goals
-                        </Link>
-                    </div>
-                </div>
+              <div className="surface overflow-hidden shadow-[0_8px_30px_rgba(30,30,20,.03)]">
+                <div className="flex items-center justify-between border-b border-line px-5 py-4"><div><h2 className="font-display text-lg font-semibold text-ink">Monthly rhythm</h2><p className="mt-1 text-xs text-muted">{format(currentDate, 'MMMM yyyy')}</p></div><div className="flex items-center gap-1"><button onClick={() => setCurrentDate((date) => addMonths(date, -1))} aria-label="Previous month" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><ChevronLeft size={17} /></button><button onClick={() => setCurrentDate(new Date())} className="rounded-lg px-2 py-1 text-xs font-semibold text-muted hover:bg-surface-muted hover:text-ink">Today</button><button onClick={() => setCurrentDate((date) => addMonths(date, 1))} aria-label="Next month" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><ChevronRight size={17} /></button></div></div>
+                <div className="overflow-x-auto"><div className="min-w-[640px] p-4"><div className="grid grid-cols-[minmax(150px,1.4fr)_repeat(7,minmax(48px,1fr))] border-b border-line pb-2 text-center text-[10px] font-semibold uppercase tracking-[.12em] text-muted"><div className="text-left">Habit</div>{['M','T','W','T','F','S','S'].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}</div>{habits.map((habit) => <div key={habit._id} className="grid grid-cols-[minmax(150px,1.4fr)_repeat(7,minmax(48px,1fr))] items-center border-b border-line py-2 last:border-b-0"><div className="truncate pr-3 text-xs font-semibold text-ink">{habit.name}</div>{calendarDays.slice(0, 7).map((day) => <div key={day.toISOString()} className="flex justify-center"><button onClick={() => toggleHabit(habit._id, day)} aria-label={`${habit.name} on ${format(day, 'MMM d')}`} className={`grid h-7 w-7 place-items-center rounded-lg border text-[11px] transition ${getLog(habit._id, day)?.completed ? 'border-accent bg-accent text-white' : 'border-line bg-surface-muted text-transparent hover:border-accent hover:bg-accent-soft'}`}><Check size={13} strokeWidth={3} /></button></div>)}</div>)}{habits.length === 0 && <p className="py-10 text-center text-sm text-muted">Add a habit to see its weekly rhythm.</p>}</div></div>
+              </div>
             </div>
 
-            {/* Main Content */}
-            <div className="flex flex-col md:grid md:grid-cols-12 gap-4 flex-1 min-h-0">
-                {/* Sidebar Habits */}
-                <div className="md:col-span-3 glass flex flex-col md:h-full max-h-[300px] md:max-h-none overflow-hidden hidden md:flex">
-                    <div className="h-12 border-b border-white/10 flex items-center justify-between px-4 font-bold tracking-wider text-sm shrink-0">
-                        <span>HABITS</span>
-                        <span className="text-xs text-gray-500">{habits.length} Active</span>
-                    </div>
+            <aside className="space-y-6">
+              <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Monthly goal</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Show up often</h2></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Target size={17} /></span></div><div className="mt-6 flex items-center gap-5"><div className="grid h-28 w-28 shrink-0 place-items-center rounded-full" style={{ background: `conic-gradient(var(--accent) ${completionRate}%, var(--surface-muted) 0)` }}><div className="grid h-20 w-20 place-items-center rounded-full bg-white"><span className="font-display text-xl font-semibold text-ink">{completionRate}%</span></div></div><div><p className="text-sm font-semibold text-ink">{totalCompleted} completed</p><p className="mt-1 text-xs leading-5 text-muted">Every completed day compounds into something bigger.</p></div></div></div>
+              <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Consistency</p><h2 className="mt-2 font-display text-lg font-semibold text-ink">By week</h2></div><BarChart3 size={18} className="text-muted" /></div><div className="space-y-4">{weeklyStats.map((week) => { const percent = week.possible ? Math.round((week.completed / week.possible) * 100) : 0; return <div key={week.label}><div className="mb-1.5 flex justify-between text-xs"><span className="font-medium text-ink">{week.label}</span><span className="text-muted">{percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${percent}%` }} /></div></div>; })}</div></div>
+              <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-3 flex items-center gap-2 text-muted"><CircleHelp size={16} /><span className="text-xs font-semibold uppercase tracking-[.14em]">A gentle reminder</span></div><p className="text-sm leading-6 text-ink">You do not need a perfect month. You only need a next check-in.</p></div>
+              <div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-4 flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Daily overview</p><h2 className="mt-2 font-display text-lg font-semibold text-ink">Completions</h2></div><BarChart3 size={18} className="text-muted" /></div><div className="h-44"><StatsChart logs={currentMonthLogs} totalHabits={habits.length} currentDate={currentDate} /></div></div>
+            </aside>
+          </section>
+        </main>
+      </div>
 
-                    <div ref={habitScrollRef} className="flex-1 overflow-y-auto">
-                        <div className="hidden md:block h-8 bg-black/40"></div>
-                        <div className="hidden md:block h-6 border-b border-white/10 bg-black/40"></div>
-
-                        {habits.map((habit) => (
-                            <div key={habit._id} className="flex h-12 items-center px-4 hover:bg-white/5 border-b border-white/5 text-sm text-gray-300 group relative">
-                                <span className={cn("mr-3 text-lg", `text-${habit.color}`)}>{habit.icon}</span>
-                                <div className="flex flex-col flex-1 min-w-0 justify-center">
-                                    <span className="truncate font-medium leading-tight">{habit.name}</span>
-                                    {habit.description && (
-                                        <span className="truncate text-[10px] text-gray-500 leading-tight block">{habit.description}</span>
-                                    )}
-                                </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); promptEdit(habit); }}
-                                    className="opacity-0 group-hover:opacity-100 ml-auto mr-2 text-gray-500 hover:text-white transition-opacity self-center"
-                                >
-                                    ✏️
-                                </button>
-                                <div className={cn("w-[2px] h-6 rounded-full absolute right-0 bg-transparent top-1/2 -translate-y-1/2", `bg-${habit.color}`)} />
-                            </div>
-                        ))}
-
-                        {habits.length === 0 && (
-                            <div className="p-4 text-center text-xs text-gray-500 italic">
-                                No habits yet. Add one below!
-                            </div>
-                        )}
-
-                        <div className="hidden md:flex flex-col">
-                            <div className="h-8 border-t border-white/10 bg-black/20"></div>
-                            <div className="h-8 border-t border-white/10 bg-black/20"></div>
-                        </div>
-                    </div>
-
-                    <form onSubmit={createHabit} className="p-2 border-t border-white/10 flex flex-col gap-2">
-                        <input
-                            type="text"
-                            placeholder="+ Add Habit"
-                            className="w-full bg-transparent border border-white/10 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-neon-blue"
-                            value={newHabitName}
-                            onChange={(e) => setNewHabitName(e.target.value)}
-                        />
-                        <input
-                            type="text"
-                            placeholder="Optional note / goal..."
-                            value={newHabitDescription}
-                            onChange={(e) => setNewHabitDescription(e.target.value)}
-                            className="w-full bg-transparent border border-white/10 rounded px-2 py-1 text-xs text-gray-400 focus:text-white focus:outline-none focus:border-neon-blue transition-colors"
-                        />
-                        <button type="submit" className="hidden" />
-                    </form>
-
-                    {habits.length > 0 && (
-                        <>
-                            <div className="h-8 border-t border-white/10 bg-black/20 flex items-center justify-end px-4 text-[10px] font-bold text-gray-400">
-                                Habits completed daily:
-                            </div>
-                            <div className="h-8 border-t border-white/10 bg-black/20 flex items-center justify-end px-4 text-[10px] font-bold text-gray-400">
-                                Progress %:
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <div className="col-span-7 glass overflow-hidden flex flex-col">
-                    <div className="h-12 border-b border-white/10 flex items-center justify-center font-bold tracking-wider text-sm text-gray-400">
-                        WEEKLY PROGRESS
-                    </div>
-                    <div ref={gridScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden">
-                        <WeeklyGrid
-                            habits={habits}
-                            logs={logs}
-                            currentDate={currentDate}
-                            onToggle={toggleHabit}
-                            extraBottomPadding={gridSpacer}
-                        />
-                    </div>
-                </div>
-
-                <div className="col-span-2 glass p-4 flex flex-col relative">
-                    <h4 className="text-xs font-bold uppercase tracking-widest mb-4">Monthly Goal</h4>
-                    <div className="flex-1 space-y-4">
-                        <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-                            <div className="h-full bg-neon-green" style={{ width: `${completionRate}%` }} />
-                        </div>
-                        <div className="text-right text-sm text-neon-green font-bold">{completionRate}% Completed</div>
-                    </div>
-
-                    <div className="absolute bottom-4 right-4 text-center">
-                        <div className="text-4xl text-white">❤️</div>
-                        <div className="text-xl font-bold">{totalCompleted}</div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-5 gap-4 h-[80px] shrink-0">
-                {[0, 1, 2, 3, 4].map(i => {
-                    if (!weeklyStats[i]) return <div key={i} className="glass opacity-30"></div>;
-                    const stats = weeklyStats[i];
-                    return (
-                        <div key={i} className="glass flex flex-col items-center justify-center relative overflow-hidden group p-2">
-                            <div className={cn(
-                                "absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300",
-                                weekColors[i % 5]
-                            )} />
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">WEEK {i + 1}</span>
-                            <div className={cn(
-                                "text-lg font-bold",
-                                weekTextColors[i % 5]
-                            )}>
-                                {stats.completed}/{stats.possible}/{stats.completionRate}%
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
-        </div>
-    );
+      {editingHabit && <div className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Edit habit"><form onSubmit={updateHabit} className="surface w-full max-w-md p-5 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Edit habit</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Keep it honest.</h2></div><button type="button" onClick={() => setEditingHabit(null)} aria-label="Close edit dialog" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><X size={17} /></button></div><label className="mb-4 block text-sm font-semibold text-ink">Name<input value={editingHabit.name} onChange={(event) => setEditingHabit({ ...editingHabit, name: event.target.value })} className="mt-2 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" /></label><label className="mb-6 block text-sm font-semibold text-ink">Note<textarea value={editingHabit.description || ''} onChange={(event) => setEditingHabit({ ...editingHabit, description: event.target.value })} rows={3} className="mt-2 w-full resize-none rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" placeholder="A short note to keep you on track" /></label><div className="flex items-center justify-between gap-3"><button type="button" onClick={deleteHabit} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#b66a63] hover:bg-[#fbefed]"><Trash2 size={15} /> Delete</button><div className="flex gap-2"><button type="button" onClick={() => setEditingHabit(null)} className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-muted">Cancel</button><button type="submit" disabled={isSaving} className="rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save changes'}</button></div></div></form></div>}
+    </div>
+  );
 }

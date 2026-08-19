@@ -1,355 +1,109 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { ArrowLeft, BarChart3, Check, Clock3, Coffee, Flame, Play, Square, TimerReset } from 'lucide-react';
 import { format, isSameDay, subDays } from 'date-fns';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, AreaChart, Area, CartesianGrid } from 'recharts';
-import { cn } from '@/lib/utils';
+import { readStored, writeStored } from '@/lib/clientStorage';
 
-interface TimerLog {
-    _id: string;
-    category: 'Study' | 'Other' | 'Food';
-    startTime: string;
-    endTime: string;
-    duration: number;
+type Category = 'Study' | 'Other' | 'Food';
+type TimerLog = { _id: string; category: Category; startTime: string; endTime: string; duration: number };
+
+const CATEGORIES: Record<Category, { color: string; icon: typeof Clock3 }> = {
+  Study: { color: '#6f7f55', icon: Clock3 },
+  Other: { color: '#8b7aa8', icon: Flame },
+  Food: { color: '#b98659', icon: Coffee },
+};
+
+function formatDuration(milliseconds: number) {
+  const seconds = Math.floor(milliseconds / 1000) % 60;
+  const minutes = Math.floor(milliseconds / 60000) % 60;
+  const hours = Math.floor(milliseconds / 3600000);
+  return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':');
 }
 
-const CATEGORIES = {
-    Study: { color: '#00fff5', label: 'Study', bg: 'bg-neon-blue' }, // Neon Blue
-    Food: { color: '#ff9900', label: 'Food', bg: 'bg-neon-orange' }, // Neon Orange
-    Other: { color: '#b026ff', label: 'Other', bg: 'bg-neon-purple' } // Neon Purple
-};
-type CategoryKey = keyof typeof CATEGORIES;
-
 export default function TimerPage() {
-    const [logs, setLogs] = useState<TimerLog[]>([]);
-    const [activeCategory, setActiveCategory] = useState<string | null>(null);
-    const [startTime, setStartTime] = useState<Date | null>(null);
-    const [elapsed, setElapsed] = useState(0);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [logs, setLogs] = useState<TimerLog[]>(() => readStored<TimerLog[]>('timer-logs', []));
+  const [activeCategory, setActiveCategory] = useState<Category | null>(null);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Fetch logs
+  const saveLogs = (nextLogs: TimerLog[]) => {
+    setLogs(nextLogs);
+    writeStored('timer-logs', nextLogs);
+  };
+
+  useEffect(() => {
     const fetchLogs = async () => {
-        try {
-            const res = await fetch('/api/timer?range=month');
-            const data = await res.json();
-            if (Array.isArray(data)) {
-                setLogs(data);
-            } else {
-                console.error("Timer API returned non-array:", data);
-                setLogs([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch logs", error);
-        }
+      try {
+        const response = await fetch('/api/timer?range=month', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Timer API unavailable');
+        const data = await response.json();
+        if (Array.isArray(data)) saveLogs(data);
+      } catch {
+        // Browser storage is the offline fallback.
+      }
     };
+    void fetchLogs();
+  }, []);
 
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        fetchLogs();
-    }, []);
+  useEffect(() => {
+    if (!activeCategory || !startTime) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      return;
+    }
+    intervalRef.current = setInterval(() => setElapsed(Date.now() - startTime.getTime()), 1000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [activeCategory, startTime]);
 
-    // Timer Logic
-    useEffect(() => {
-        if (activeCategory && startTime) {
-            intervalRef.current = setInterval(() => {
-                setElapsed(Date.now() - startTime.getTime());
-            }, 1000);
-        } else {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        }
-        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-    }, [activeCategory, startTime]);
+  const stopTimer = async () => {
+    if (!activeCategory || !startTime) return;
+    const endTime = new Date();
+    const duration = Math.max(endTime.getTime() - startTime.getTime(), 1000);
+    const localLog: TimerLog = { _id: `local-${Date.now()}`, category: activeCategory, startTime: startTime.toISOString(), endTime: endTime.toISOString(), duration };
+    saveLogs([localLog, ...logs]);
 
-    // Format Duration
-    const formatDuration = (ms: number) => {
-        const seconds = Math.floor((ms / 1000) % 60);
-        const minutes = Math.floor((ms / (1000 * 60)) % 60);
-        const hours = Math.floor((ms / (1000 * 60 * 60)));
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
+    try {
+      const response = await fetch('/api/timer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: activeCategory, startTime: startTime.toISOString(), endTime: endTime.toISOString(), duration }) });
+      if (response.ok) {
+        const saved = await response.json();
+        saveLogs([saved, ...logs]);
+      }
+    } catch {
+      // The local session is already saved.
+    }
+    setActiveCategory(null);
+    setStartTime(null);
+    setElapsed(0);
+  };
 
-    // Handlers
-    const stopTimer = async () => {
-        if (!activeCategory || !startTime) return;
+  const startTimer = async (category: Category) => {
+    if (activeCategory === category) {
+      await stopTimer();
+      return;
+    }
+    if (activeCategory) await stopTimer();
+    setActiveCategory(category);
+    setStartTime(new Date());
+    setElapsed(0);
+  };
 
-        const endTime = new Date();
-        const duration = endTime.getTime() - startTime.getTime();
+  const todayDuration = useMemo(() => logs.filter((log) => isSameDay(new Date(log.startTime), new Date())).reduce((total, log) => total + log.duration, 0) + (activeCategory ? elapsed : 0), [activeCategory, elapsed, logs]);
+  const weeklyDuration = useMemo(() => logs.filter((log) => new Date(log.startTime) >= subDays(new Date(), 7)).reduce((total, log) => total + log.duration, 0), [logs]);
+  const recentDays = useMemo(() => Array.from({ length: 7 }, (_, index) => { const day = subDays(new Date(), 6 - index); const duration = logs.filter((log) => isSameDay(new Date(log.startTime), day)).reduce((total, log) => total + log.duration, 0); return { day: format(day, 'EEE'), duration }; }), [logs]);
 
-        // Save Log
-        try {
-            await fetch('/api/timer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    category: activeCategory,
-                    startTime,
-                    endTime,
-                    duration
-                })
-            });
-            await fetchLogs(); // Refresh data
-        } catch (error) {
-            console.error("Failed to save log", error);
-        }
+  return (
+    <div className="app-shell page-grid min-h-screen px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+      <div className="mx-auto w-full max-w-6xl">
+        <header className="mb-8 flex items-start justify-between gap-4"><div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">Make space for focus</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Focus timer<span className="text-accent">.</span></h1><p className="mt-3 text-sm leading-6 text-muted">A simple timer for the work that deserves your attention.</p></div><div className="hidden rounded-2xl bg-ink px-5 py-4 text-white sm:block"><p className="text-xs font-semibold uppercase tracking-[.14em] text-white/50">Today</p><p className="mt-2 font-display text-3xl font-semibold">{formatDuration(todayDuration)}</p><p className="mt-1 text-xs text-white/60">of focused time</p></div></header>
 
-        setActiveCategory(null);
-        setStartTime(null);
-        setElapsed(0);
-    };
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(290px,.7fr)]">
+          <section className="space-y-6"><div className="surface flex min-h-[330px] flex-col items-center justify-center p-6 text-center shadow-[0_8px_30px_rgba(30,30,20,.03)] sm:p-10"><div className="mb-6 grid h-12 w-12 place-items-center rounded-2xl bg-accent-soft text-accent">{activeCategory ? <Play size={20} fill="currentColor" /> : <TimerReset size={20} />}</div><p className="text-xs font-semibold uppercase tracking-[.18em] text-muted">{activeCategory ? `Tracking ${activeCategory}` : 'Ready when you are'}</p><div className="my-4 font-display text-6xl font-semibold tracking-[-.06em] text-ink tabular-nums sm:text-8xl">{formatDuration(elapsed)}</div><p className="max-w-sm text-sm leading-6 text-muted">{activeCategory ? 'Stay with it. Switching categories saves the current session.' : 'Choose a category below to start recording a focused session.'}</p></div><div className="grid grid-cols-3 gap-3">{(Object.entries(CATEGORIES) as [Category, typeof CATEGORIES[Category]][]).map(([category, config]) => { const Icon = config.icon; const active = category === activeCategory; return <button key={category} onClick={() => startTimer(category)} className={`surface flex min-h-[112px] flex-col items-center justify-center gap-2 p-3 text-center transition hover:-translate-y-0.5 hover:shadow-md ${active ? 'border-accent bg-accent-soft' : ''}`}><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: `${config.color}18`, color: config.color }}><Icon size={18} /></span><span className="text-xs font-semibold text-ink">{category}</span>{active && <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-accent">Active</span>}</button>; })}</div><button onClick={stopTimer} disabled={!activeCategory} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#e4c9c5] bg-[#fff8f7] text-sm font-semibold text-[#b66a63] transition hover:bg-[#fbefed] disabled:opacity-40"><Square size={15} fill="currentColor" /> Stop and save session</button></section>
 
-    const startTimer = async (category: string) => {
-        if (activeCategory === category) {
-            // Stop current if clicked again (toggle) - actually simpler to have explicit 'Stop' or switch
-            await stopTimer();
-            return;
-        }
-
-        if (activeCategory) {
-            await stopTimer(); // Stop previous before starting new
-        }
-
-        setActiveCategory(category);
-        setStartTime(new Date());
-        setElapsed(0);
-    };
-
-    // Calculate Today's Stats for Pie Chart
-    const dailyData = useMemo(() => {
-        const today = new Date(); // Use local time for simple grouping (Dashboard uses local)
-        const todaysLogs = logs.filter(l => isSameDay(new Date(l.startTime), today));
-
-        const summary = { Study: 0, Food: 0, Other: 0 };
-        todaysLogs.forEach(l => {
-            if (summary[l.category] !== undefined) {
-                summary[l.category] += l.duration;
-            }
-        });
-
-        // Add current elapsed if active
-        if (activeCategory) {
-            summary[activeCategory as keyof typeof summary] += elapsed;
-        }
-
-        return Object.entries(summary).map(([name, value]) => ({
-            name,
-            value: value / (1000 * 60 * 60) // in hours
-        })).filter(d => d.value > 0);
-    }, [logs, activeCategory, elapsed]);
-
-    // Calculate Weekly Stats for Bar Chart
-    const weeklyData = useMemo(() => {
-        const days = [];
-        // Last 7 days including today
-        for (let i = 6; i >= 0; i--) {
-            const date = subDays(new Date(), i);
-            const dayLogs = logs.filter(l => isSameDay(new Date(l.startTime), date));
-
-            const stats: { name: string } & Record<CategoryKey, number> = { name: format(date, 'EEE'), Study: 0, Food: 0, Other: 0 };
-            dayLogs.forEach(l => {
-                stats[l.category as CategoryKey] += l.duration;
-            });
-
-            // Convert to hours
-            stats.Study = Number((stats.Study / (1000 * 60 * 60)).toFixed(1));
-            stats.Food = Number((stats.Food / (1000 * 60 * 60)).toFixed(1));
-            stats.Other = Number((stats.Other / (1000 * 60 * 60)).toFixed(1));
-
-            days.push(stats);
-        }
-        return days;
-    }, [logs]); // Exclude active session from weekly to keep it simple or include it? Let's leave active out of weekly until saved
-
-    // Calculate Monthly Trend for Area Chart
-    const monthlyData = useMemo(() => {
-        const days = [];
-        // Last 30 days
-        for (let i = 29; i >= 0; i--) {
-            const date = subDays(new Date(), i);
-            const dayLogs = logs.filter(l => isSameDay(new Date(l.startTime), date));
-
-            const stats: { name: string } & Record<CategoryKey, number> = { name: format(date, 'MMM d'), Study: 0, Food: 0, Other: 0 };
-            dayLogs.forEach(l => {
-                stats[l.category as CategoryKey] += l.duration;
-            });
-
-            // Convert to hours
-            stats.Study = Number((stats.Study / (1000 * 60 * 60)).toFixed(1));
-            stats.Food = Number((stats.Food / (1000 * 60 * 60)).toFixed(1));
-            stats.Other = Number((stats.Other / (1000 * 60 * 60)).toFixed(1));
-
-            days.push(stats);
-        }
-        return days;
-    }, [logs]);
-
-    return (
-        <div className="h-screen overflow-y-auto bg-black text-white p-6 font-sans selection:bg-neon-blue selection:text-black">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-                <Link href="/" className="flex items-center text-gray-400 hover:text-white transition-colors">
-                    <span className="mr-2 text-xl">←</span>
-                    <span className="font-bold tracking-widest text-sm uppercase">Dashboard</span>
-                </Link>
-                <div className="text-right">
-                    <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Productivity Timer</div>
-                    <div className="text-xl font-bold text-white uppercase">{format(new Date(), 'EEEE, MMMM d')}</div>
-                </div>
-            </div>
-
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-
-                {/* Timer Section */}
-                <div className="flex flex-col gap-6">
-                    {/* Timer Display */}
-                    <div className="glass p-12 flex flex-col items-center justify-center relative overflow-hidden group">
-                        <div className={cn("absolute inset-0 opacity-10 transition-colors duration-500", activeCategory ? CATEGORIES[activeCategory as keyof typeof CATEGORIES].bg : "bg-gray-900")} />
-
-                        <div className="relative z-10 text-center">
-                            <div
-                                className="text-xs font-bold uppercase tracking-[0.2em] mb-4 transition-colors"
-                                style={{ color: activeCategory ? CATEGORIES[activeCategory as keyof typeof CATEGORIES].color : '#6b7280' }}
-                            >
-                                {activeCategory ? `Currently: ${activeCategory}` : "Timer Idle"}
-                            </div>
-                            <div className="text-8xl font-black tabular-nums tracking-tighter text-white drop-shadow-lg">
-                                {formatDuration(elapsed)}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Controls */}
-                    <div className="grid grid-cols-3 gap-4">
-                        {Object.entries(CATEGORIES).map(([key, config]) => {
-                            const isActive = activeCategory === key;
-                            return (
-                                <button
-                                    key={key}
-                                    onClick={() => startTimer(key)}
-                                    className={cn(
-                                        "h-24 rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border border-white/10 hover:border-white/30",
-                                        isActive ? "bg-white/10 scale-105 border-white/50 shadow-[0_0_30px_rgba(255,255,255,0.1)]" : "bg-black/40 hover:bg-white/5"
-                                    )}
-                                >
-                                    <div className="w-3 h-3 rounded-full mb-2" style={{ backgroundColor: config.color, boxShadow: isActive ? `0 0 10px ${config.color}` : 'none' }} />
-                                    <span className="font-bold text-sm tracking-widest uppercase text-gray-300">{config.label}</span>
-                                    {isActive && <span className="text-[10px] text-white/50 mt-1 animate-pulse">Tracking...</span>}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* Stop Button */}
-                    <button
-                        onClick={stopTimer}
-                        disabled={!activeCategory}
-                        className="w-full h-16 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-bold uppercase tracking-widest hover:bg-red-500/20 hover:border-red-500/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                    >
-                        Stop Timer
-                    </button>
-
-                    <div className="mt-4 text-xs text-center text-gray-500">
-                        Stop or switch categories to save your session automatically.
-                    </div>
-                </div>
-
-                {/* VISUALIZATION SECTION */}
-                <div className="flex flex-col gap-6">
-
-                    {/* Daily Breakdown */}
-                    <div className="glass p-6 flex flex-col h-[300px]">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Today&apos;s Focus</h3>
-                        <div className="flex-1 w-full min-h-[200px]">
-                            {dailyData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={dailyData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                        >
-                                            {dailyData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={CATEGORIES[entry.name as keyof typeof CATEGORIES].color} stroke="none" />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{ backgroundColor: '#000', borderColor: '#333', borderRadius: '8px' }}
-                                            itemStyle={{ color: '#fff' }}
-                                            formatter={(value: number | undefined) => [`${(value ?? 0).toFixed(2)} hrs`, 'Duration']}
-                                        />
-                                        <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="h-full flex items-center justify-center text-gray-600 text-sm italic">
-                                    No activity recorded today
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Weekly Summary */}
-                    <div className="glass p-6 flex flex-col h-[300px]">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">Weekly Analysis (Hours)</h3>
-                        <div className="flex-1 w-full min-h-[200px] text-xs">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={weeklyData} stackOffset="sign">
-                                    <XAxis dataKey="name" stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(255,255,255,0.1)' }}
-                                        contentStyle={{ backgroundColor: '#000', borderColor: '#333', borderRadius: '8px' }}
-                                    />
-                                    <Legend iconType="circle" />
-                                    <Bar dataKey="Study" stackId="a" fill={CATEGORIES.Study.color} radius={[0, 0, 4, 4]} barSize={20} />
-                                    <Bar dataKey="Other" stackId="a" fill={CATEGORIES.Other.color} barSize={20} />
-                                    <Bar dataKey="Food" stackId="a" fill={CATEGORIES.Food.color} radius={[4, 4, 0, 0]} barSize={20} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* Monthly Trend */}
-                    <div className="glass p-6 flex flex-col h-[300px]">
-                        <h3 className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-4">30-Day Trend (Hours)</h3>
-                        <div className="flex-1 w-full min-h-[200px] text-xs">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={monthlyData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorStudy" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor={CATEGORIES.Study.color} stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor={CATEGORIES.Study.color} stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="colorFood" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor={CATEGORIES.Food.color} stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor={CATEGORIES.Food.color} stopOpacity={0} />
-                                        </linearGradient>
-                                        <linearGradient id="colorOther" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor={CATEGORIES.Other.color} stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor={CATEGORIES.Other.color} stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="name" stroke="#666" fontSize={10} tickLine={false} axisLine={false} interval={6} />
-                                    <YAxis stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#000', borderColor: '#333', borderRadius: '8px' }}
-                                    />
-                                    <Area type="monotone" dataKey="Study" stroke={CATEGORIES.Study.color} fillOpacity={1} fill="url(#colorStudy)" />
-                                    <Area type="monotone" dataKey="Other" stroke={CATEGORIES.Other.color} fillOpacity={1} fill="url(#colorOther)" />
-                                    <Area type="monotone" dataKey="Food" stroke={CATEGORIES.Food.color} fillOpacity={1} fill="url(#colorFood)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
+          <aside className="space-y-6"><div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Last 7 days</p><h2 className="mt-2 font-display text-2xl font-semibold text-ink">{formatDuration(weeklyDuration)}</h2></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><BarChart3 size={17} /></span></div><div className="mt-7 flex h-32 items-end gap-2">{recentDays.map((day) => { const height = weeklyDuration ? Math.max((day.duration / Math.max(...recentDays.map((item) => item.duration), 1)) * 100, day.duration ? 8 : 2) : 2; return <div key={day.day} className="flex flex-1 flex-col items-center gap-2"><div className="flex h-24 w-full items-end"><div className="w-full rounded-t-lg bg-accent transition-all" style={{ height: `${height}%`, opacity: day.duration ? .9 : .15 }} /></div><span className="text-[10px] font-semibold text-muted">{day.day}</span></div>; })}</div></div><div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-4 flex items-center gap-2"><Check size={16} className="text-accent" /><h2 className="font-display text-lg font-semibold text-ink">How it works</h2></div><ol className="space-y-3 text-sm leading-5 text-muted"><li><span className="mr-2 font-semibold text-ink">01</span>Choose what you are focusing on.</li><li><span className="mr-2 font-semibold text-ink">02</span>Stop or switch when you are done.</li><li><span className="mr-2 font-semibold text-ink">03</span>Your session is saved automatically.</li></ol></div></aside>
         </div>
-    );
+      </div>
+    </div>
+  );
 }

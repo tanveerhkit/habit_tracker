@@ -1,75 +1,73 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-
-  /* Neon Accents */
-  --color-neon-red: #FF003C;
-  --color-neon-green: #00F763;
-  --color-neon-blue: #00C2FF;
-  --color-neon-purple: #D500F9;
-  --color-neon-orange: #FF9100;
-
-  --font-sans: var(--font-inter);
+  --color-ink: #191918;
+  --color-muted: #6f706b;
+  --color-line: #e8e7e1;
+  --color-surface: #ffffff;
+  --color-accent: #6f7f55;
+  --color-accent-soft: #edf1e7;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
 }
 
 :root {
-  --background: #09090b;
-  /* Zinc 950 - Deep dark */
-  --foreground: #fafafa;
-  /* Zinc 50 */
-
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.08);
-
-  /* Week Colors for Gradients/Accents */
-  --week-1: var(--color-neon-red);
-  --week-2: var(--color-neon-green);
-  --week-3: var(--color-neon-blue);
-  --week-4: var(--color-neon-purple);
-  --week-5: var(--color-neon-orange);
+  --background: #f7f7f3;
+  --foreground: #191918;
+  --surface: #ffffff;
+  --surface-muted: #f0f0eb;
+  --line: #e8e7e1;
+  --accent: #6f7f55;
+  --accent-soft: #edf1e7;
+  --accent-strong: #53643d;
+  --muted: #6f706b;
+  --danger: #b66a63;
 }
 
+* { box-sizing: border-box; }
+
+html { background: var(--background); }
+
 body {
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans);
   overflow-x: hidden;
 }
 
-/* Glassmorphism Utilities */
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+
+::selection { background: #dfe8d4; color: var(--ink); }
+
+.app-shell { min-height: 100vh; background: var(--background); }
+.surface { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.surface-soft { background: var(--surface-muted); border-radius: 14px; }
+
+.page-grid {
+  background-image: linear-gradient(to right, rgba(25,25,24,.025) 1px, transparent 1px), linear-gradient(to bottom, rgba(25,25,24,.025) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
-.glass-hover {
-  transition: all 0.3s ease;
+.focus-ring:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid rgba(111, 127, 85, .28);
+  outline-offset: 2px;
 }
 
-.glass-hover:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+.fade-in { animation: fade-in .35s ease-out both; }
+
+@keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--background);
-}
-
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
-}
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d2d3cb; border: 2px solid var(--background); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #b8b9b0; }

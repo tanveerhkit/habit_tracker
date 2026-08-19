@@ -1,92 +1,38 @@
-"use client";
+'use client';
 
-import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { format, eachDayOfInterval, startOfMonth, endOfMonth, isSameDay, parseISO } from 'date-fns';
+import { useMemo } from 'react';
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { eachDayOfInterval, endOfMonth, format, isSameDay, parseISO, startOfMonth } from 'date-fns';
 import { IHabitLog } from '@/lib/types';
 
 interface StatsChartProps {
-    logs: IHabitLog[];
-    totalHabits: number;
-    currentDate: Date; // The selected month
+  logs: IHabitLog[];
+  totalHabits: number;
+  currentDate: Date;
 }
 
 export default function StatsChart({ logs, totalHabits, currentDate }: StatsChartProps) {
-    // Generate data for the current month
-    const data = React.useMemo(() => {
-        const start = startOfMonth(currentDate);
-        const end = endOfMonth(currentDate);
-        const daysInMonth = eachDayOfInterval({ start, end });
+  const data = useMemo(() => eachDayOfInterval({ start: startOfMonth(currentDate), end: endOfMonth(currentDate) }).map((day) => ({
+    day: format(day, 'd'),
+    label: format(day, 'MMM d'),
+    completed: logs.filter((log) => log.completed && isSameDay(parseISO(log.date), day)).length,
+  })), [currentDate, logs]);
 
-        // Map each day of the month to completion stats
-        const chartData = daysInMonth.map(day => {
-            // Find logs for this day
-            // Logs date is ISO string, need to compare date part
-            const count = logs.filter(log =>
-                isSameDay(parseISO(log.date), day) && log.completed
-            ).length;
-
-            return {
-                date: day,
-                dateStr: format(day, 'd'),
-                fullDate: format(day, 'MMM d, yyyy'),
-                completed: count
-            };
-        });
-
-        return chartData;
-    }, [logs, currentDate]);
-
-    return (
-        <div className="w-full h-full">
-            <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                    data={data}
-                    margin={{
-                        top: 10,
-                        right: 10,
-                        left: -25,
-                        bottom: 0,
-                    }}
-                >
-                    <defs>
-                        <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#DC2626" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#DC2626" stopOpacity={0.1} />
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                    <XAxis
-                        dataKey="dateStr"
-                        tick={{ fill: '#737373', fontSize: 9, fontWeight: 'bold' }}
-                        axisLine={false}
-                        tickLine={false}
-                        interval={2}
-                    />
-                    <YAxis
-                        tick={{ fill: '#737373', fontSize: 9, fontWeight: 'bold' }}
-                        axisLine={false}
-                        tickLine={false}
-                        domain={[0, totalHabits > 0 ? totalHabits : 5]}
-                    />
-                    <Tooltip
-                        contentStyle={{ backgroundColor: '#09090b', borderColor: '#27272a' }}
-                        itemStyle={{ color: '#DC2626' }}
-                        labelStyle={{ color: '#a1a1aa', marginBottom: '4px' }}
-                        cursor={{ stroke: 'rgba(255,255,255,0.1)' }}
-                    />
-                    <Area
-                        type="monotone"
-                        dataKey="completed"
-                        stroke="#DC2626"
-                        strokeWidth={3}
-                        fillOpacity={1}
-                        fill="url(#colorCompleted)"
-                        animationDuration={800}
-                        isAnimationActive={true}
-                    />
-                </AreaChart>
-            </ResponsiveContainer>
-        </div>
-    );
+  return (
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+        <defs>
+          <linearGradient id="habitlyCompletion" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#6f7f55" stopOpacity={0.28} />
+            <stop offset="100%" stopColor="#6f7f55" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid vertical={false} stroke="#ecece6" strokeDasharray="3 3" />
+        <XAxis dataKey="day" tick={{ fill: '#8b8c84', fontSize: 10 }} axisLine={false} tickLine={false} interval={Math.max(0, Math.ceil(data.length / 7) - 1)} />
+        <YAxis domain={[0, Math.max(totalHabits, 1)]} allowDecimals={false} tick={{ fill: '#8b8c84', fontSize: 10 }} axisLine={false} tickLine={false} />
+        <Tooltip contentStyle={{ border: '1px solid #e8e7e1', borderRadius: 12, background: '#fff', boxShadow: '0 8px 24px rgba(30,30,20,.08)' }} labelStyle={{ color: '#191918', fontWeight: 600 }} itemStyle={{ color: '#6f7f55' }} labelFormatter={(_, payload) => payload?.[0]?.payload?.label ?? ''} formatter={(value) => [`${value} completed`, 'Habits']} />
+        <Area type="monotone" dataKey="completed" stroke="#6f7f55" strokeWidth={2.5} fill="url(#habitlyCompletion)" activeDot={{ r: 4, fill: '#6f7f55', stroke: '#fff', strokeWidth: 2 }} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 }

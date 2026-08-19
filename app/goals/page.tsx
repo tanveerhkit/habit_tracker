@@ -1,61 +1,83 @@
-"use client";
+'use client';
 
-import React from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { ArrowLeft, Check, Circle, Flag, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
+import { readStored, writeStored } from '@/lib/clientStorage';
 
-const goals = [
-    { id: 1, label: "Namaz 5 tym", icon: "🕌", color: "neon-green" },
-    { id: 2, label: "Build Personal Brand", icon: "👨‍💻", color: "neon-blue" },
-    { id: 3, label: "Good Physique (Look Maxing)", icon: "💪", color: "neon-orange" },
-    { id: 4, label: "Financially Stable", icon: "💰", color: "neon-orange" },
-    { id: 5, label: "Good Conversational Skills", icon: "🎙️", color: "neon-purple" },
-    { id: 6, label: "Start a Startup", icon: "🚀", color: "neon-red" },
-    { id: 7, label: "A Nice Behaviour (With Sharp Mind)", icon: "🧠", color: "neon-red" },
-    { id: 8, label: "Better Eyesight", icon: "👁️", color: "neon-blue" },
-    { id: 9, label: "Height Increase", icon: "📏", color: "neon-green" }
-];
+type Goal = {
+  id: string;
+  title: string;
+  note: string;
+  completed: boolean;
+};
+
+const DEFAULT_GOALS: Goal[] = [];
 
 export default function GoalsPage() {
-    // Fix scrolling: Layout has overflow-hidden, so this page needs its own scroll container
-    return (
-        <div className="h-screen overflow-y-auto w-full bg-black text-white p-4 md:p-8 flex flex-col items-center">
-            {/* Header */}
-            <header className="w-full max-w-5xl flex items-center justify-between mb-8 md:mb-12">
-                <Link href="/" className="text-gray-400 hover:text-white transition-colors flex items-center gap-2">
-                    <span>←</span> Back to Dashboard
-                </Link>
-                <div className="text-right">
-                    <h1 className="text-3xl md:text-5xl font-black text-white tracking-tighter">2026 VISION</h1>
-                    <p className="text-neon-blue font-handwriting text-xl md:text-2xl mt-1">(Inshallah)</p>
-                </div>
-            </header>
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all');
+  const [isAdding, setIsAdding] = useState(false);
+  const [editing, setEditing] = useState<Goal | null>(null);
+  const [title, setTitle] = useState('');
+  const [note, setNote] = useState('');
 
-            {/* Grid */}
-            <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                {goals.map((goal, index) => (
-                    <motion.div
-                        key={goal.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className="glass bg-white/5 border border-white/10 p-6 rounded-2xl flex flex-col items-center justify-center text-center gap-4 hover:bg-white/10 transition-colors group relative overflow-hidden min-h-[200px]"
-                    >
-                        <div className={`absolute top-0 left-0 w-full h-1 bg-${goal.color} opacity-50`} />
 
-                        <div className="text-6xl md:text-7xl group-hover:scale-110 transition-transform duration-300 filter drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
-                            {goal.icon}
-                        </div>
-                        <h3 className="text-lg md:text-xl font-bold font-sans tracking-wide text-gray-200 group-hover:text-white">
-                            {goal.label}
-                        </h3>
-                    </motion.div>
-                ))}
-            </div>
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setGoals(readStored<Goal[]>('goals', DEFAULT_GOALS)));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
-            <footer className="mt-12 text-gray-600 text-sm">
-                Make it happen.
-            </footer>
-        </div>
-    );
+  const saveGoals = (nextGoals: Goal[]) => {
+    setGoals(nextGoals);
+    writeStored('goals', nextGoals);
+  };
+
+  const visibleGoals = useMemo(() => goals.filter((goal) => filter === 'all' || (filter === 'done' ? goal.completed : !goal.completed)), [filter, goals]);
+  const completedCount = goals.filter((goal) => goal.completed).length;
+  const progress = goals.length ? Math.round((completedCount / goals.length) * 100) : 0;
+
+  const resetForm = () => {
+    setTitle('');
+    setNote('');
+    setIsAdding(false);
+    setEditing(null);
+  };
+
+  const submitGoal = (event: FormEvent) => {
+    event.preventDefault();
+    if (!title.trim()) return;
+    if (editing) {
+      saveGoals(goals.map((goal) => goal.id === editing.id ? { ...editing, title: title.trim(), note: note.trim() } : goal));
+    } else {
+      saveGoals([...goals, { id: `goal-${Date.now()}`, title: title.trim(), note: note.trim(), completed: false }]);
+    }
+    resetForm();
+  };
+
+  const startEdit = (goal: Goal) => {
+    setEditing(goal);
+    setTitle(goal.title);
+    setNote(goal.note);
+    setIsAdding(true);
+  };
+
+  return (
+    <div className="app-shell page-grid min-h-screen px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <header className="mb-10 flex items-start justify-between gap-4">
+          <div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">A bigger picture</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Goals<span className="text-accent">.</span></h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">Keep the direction visible. Break large intentions into the next clear step.</p></div>
+          <div className="hidden rounded-2xl bg-ink px-5 py-4 text-white sm:block"><p className="text-xs font-semibold uppercase tracking-[.14em] text-white/50">Progress</p><p className="mt-2 font-display text-3xl font-semibold">{progress}%</p><p className="mt-1 text-xs text-white/60">{completedCount} of {goals.length} complete</p></div>
+        </header>
+
+        <section className="surface mb-6 p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] sm:p-6"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-display text-xl font-semibold text-ink">Your direction</h2><p className="mt-1 text-sm text-muted">One meaningful goal is enough to begin.</p></div><button onClick={() => { resetForm(); setIsAdding(true); }} className="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-strong"><Plus size={16} /> Add goal</button></div><div className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} /></div><div className="mt-3 flex items-center justify-between text-xs text-muted"><span>{goals.length ? `${goals.length} goals in view` : 'No goals yet'}</span><span>{progress}% complete</span></div></section>
+
+        {isAdding && <form onSubmit={submitGoal} className="surface mb-6 grid gap-3 p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] sm:grid-cols-[1fr_1fr_auto] sm:items-end"><label className="text-xs font-semibold uppercase tracking-[.12em] text-muted">Goal<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What matters next?" className="mt-2 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-ink placeholder:text-muted focus:border-accent focus:outline-none" /></label><label className="text-xs font-semibold uppercase tracking-[.12em] text-muted">Note<input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Why it matters" className="mt-2 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal normal-case tracking-normal text-ink placeholder:text-muted focus:border-accent focus:outline-none" /></label><div className="flex gap-2"><button type="button" onClick={resetForm} className="rounded-xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface-muted"><X size={16} /></button><button type="submit" className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-strong">{editing ? 'Save' : 'Add'}</button></div></form>}
+
+        <div className="mb-5 flex items-center gap-1 rounded-xl bg-surface-muted p-1" role="tablist" aria-label="Goal filter">{(['all', 'open', 'done'] as const).map((option) => <button key={option} onClick={() => setFilter(option)} role="tab" aria-selected={filter === option} className={`rounded-lg px-3 py-2 text-xs font-semibold capitalize transition ${filter === option ? 'bg-white text-ink shadow-sm' : 'text-muted hover:text-ink'}`}>{option === 'all' ? 'All goals' : option === 'open' ? 'In progress' : 'Completed'}</button>)}</div>
+
+        {visibleGoals.length ? <div className="grid gap-4 sm:grid-cols-2">{visibleGoals.map((goal) => <article key={goal.id} className={`surface group p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_34px_rgba(30,30,20,.07)] ${goal.completed ? 'bg-[#fbfcf9]' : ''}`}><div className="mb-8 flex items-start justify-between gap-3"><button onClick={() => saveGoals(goals.map((item) => item.id === goal.id ? { ...item, completed: !item.completed } : item))} aria-label={`${goal.completed ? 'Mark incomplete' : 'Mark complete'}: ${goal.title}`} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${goal.completed ? 'border-accent bg-accent text-white' : 'border-line text-transparent hover:border-accent hover:bg-accent-soft'}`}>{goal.completed ? <Check size={19} /> : <Circle size={18} />}</button><div className="flex gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"><button onClick={() => startEdit(goal)} aria-label={`Edit ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><Pencil size={15} /></button><button onClick={() => saveGoals(goals.filter((item) => item.id !== goal.id))} aria-label={`Delete ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-[#fbefed] hover:text-[#b66a63]"><Trash2 size={15} /></button></div></div><p className={`font-display text-xl font-semibold tracking-tight ${goal.completed ? 'text-muted line-through' : 'text-ink'}`}>{goal.title}</p><p className="mt-2 min-h-10 text-sm leading-5 text-muted">{goal.note || 'No note added yet.'}</p><div className="mt-6 flex items-center gap-2 text-xs font-semibold text-accent"><Flag size={14} /> {goal.completed ? 'Completed' : 'In progress'}</div></article>)}</div> : <div className="surface px-6 py-16 text-center"><div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent"><Sparkles size={22} /></div><h2 className="font-display text-xl font-semibold text-ink">Nothing here yet.</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">Add a goal you can move forward with this week. You can always refine it later.</p><button onClick={() => { resetForm(); setIsAdding(true); }} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-strong"><Plus size={16} /> Create a goal</button></div>}
+      </div>
+    </div>
+  );
 }
