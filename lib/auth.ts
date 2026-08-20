@@ -1,8 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { jwtVerify, SignJWT } from 'jose';
 import { NextResponse } from 'next/server';
-import dbConnect from '@/lib/db';
-import User from '@/models/User';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export const SESSION_COOKIE = 'habitly_session';
 const SESSION_DAYS = 30;
@@ -54,12 +53,26 @@ export async function getSessionUserId(request: Request) {
 export async function getAuthenticatedUser(request: Request) {
   const userId = await getSessionUserId(request);
   if (!userId) return null;
-  await dbConnect();
-  return User.findById(userId).select('+passwordHash').lean();
+
+  const { data, error } = await getSupabaseAdmin()
+    .from('users')
+    .select('id, name, email, password_hash')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    _id: data.id,
+    name: data.name,
+    email: data.email,
+    passwordHash: data.password_hash,
+  };
 }
 
-export function publicUser(user: { _id: unknown; name: string; email: string }) {
-  return { id: String(user._id), name: user.name, email: user.email };
+export function publicUser(user: { id?: unknown; _id?: unknown; name: string; email: string }) {
+  return { id: String(user.id ?? user._id), name: user.name, email: user.email };
 }
 
 export function setSessionCookie(response: NextResponse, token: string) {

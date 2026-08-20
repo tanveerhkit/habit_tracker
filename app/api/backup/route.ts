@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { isValidObjectId } from 'mongoose';
-import Habit from '@/models/Habit';
-import HabitLog from '@/models/HabitLog';
-import TimerLog from '@/models/TimerLog';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { getSupabaseAdmin } from '@/lib/supabase';
+import { mapHabit, mapHabitLog, mapTimerLog, type HabitRow } from '@/lib/supabase-mappers';
 
 const MAX_RECORDS = 10000;
 
@@ -24,14 +22,22 @@ export async function GET(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-
-    const [habits, logs, timerLogs] = await Promise.all([
-      Habit.find({ userId: user._id }).sort({ order: 1, createdAt: 1 }).lean(),
-      HabitLog.find({ userId: user._id }).sort({ date: 1 }).lean(),
-      TimerLog.find({ userId: user._id }).sort({ startTime: 1 }).lean(),
+    const supabase = getSupabaseAdmin();
+    const [habitsResult, logsResult, timerResult] = await Promise.all([
+      supabase.from('habits').select('*').eq('user_id', user.id).order('display_order', { ascending: true }).order('created_at', { ascending: true }),
+      supabase.from('habit_logs').select('*').eq('user_id', user.id).order('date', { ascending: true }),
+      supabase.from('timer_logs').select('*').eq('user_id', user.id).order('start_time', { ascending: true }),
     ]);
-
-    return NextResponse.json({ version: 1, exportedAt: new Date().toISOString(), habits, logs, timerLogs });
+    if (habitsResult.error) throw habitsResult.error;
+    if (logsResult.error) throw logsResult.error;
+    if (timerResult.error) throw timerResult.error;
+    return NextResponse.json({
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      habits: (habitsResult.data || []).map(mapHabit),
+      logs: (logsResult.data || []).map(mapHabitLog),
+      timerLogs: (timerResult.data || []).map(mapTimerLog),
+    });
   } catch (error) {
     console.error('GET /api/backup error:', error);
     return NextResponse.json({ error: 'Unable to export backup data' }, { status: 500 });
@@ -42,14 +48,14 @@ export async function POST(request: Request) {
   try {
     const user = await getAuthenticatedUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-
     const body = await request.json();
-    if (body?.version !== 1 || !body || typeof body !== 'object') return NextResponse.json({ error: 'Unsupported backup format' }, { status: 400 });
+    if (!body || typeof body !== 'object' || body.version !== 1) return NextResponse.json({ error: 'Unsupported backup format' }, { status: 400 });
 
     const habitRecords = asArray(body.habits);
     const logRecords = asArray(body.logs);
     const timerRecords = asArray(body.timerLogs);
     const habitIdMap = new Map<string, string>();
+    const supabase = getSupabaseAdmin();
     let habitsImported = 0;
     let logsImported = 0;
     let timerLogsImported = 0;
@@ -59,22 +65,32 @@ export async function POST(request: Request) {
       const name = cleanText(record.name, 120);
       if (!name) continue;
       const oldId = typeof record._id === 'string' ? record._id : '';
-      const existing = isValidObjectId(oldId) ? await Habit.findOne({ _id: oldId, userId: user._id }) : null;
       const values = {
         name,
         description: cleanText(record.description, 500),
         icon: cleanText(record.icon, 12) || '•',
         color: cleanText(record.color, 32) || '#6f7f55',
         goal: Number.isFinite(Number(record.goal)) ? Math.max(0, Number(record.goal)) : 0,
-        order: Number.isFinite(Number(record.order)) ? Number(record.order) : 0,
+        display_order: Number.isFinite(Number(record.order)) ? Number(record.order) : 0,
       };
-      const habit = existing
-        ? await Habit.findOneAndUpdate({ _id: existing._id, userId: user._id }, values, { new: true, runValidators: true })
-        : await Habit.create({ ...values, userId: user._id });
-      if (habit) {
-        habitsImported += 1;
-        if (oldId) habitIdMap.set(oldId, String(habit._id));
+
+      let habit: HabitRow | null = null;
+      if (oldId) {
+        const existing = await supabase.from('habits').select('*').eq('id', oldId).eq('user_id', user.id).maybeSingle();
+        if (existing.error) throw existing.error;
+        if (existing.data) {
+          const updated = await supabase.from('habits').update(values).eq('id', oldId).eq('user_id', user.id).select('*').single();
+          if (updated.error) throw updated.error;
+          habit = updated.data as HabitRow;
+        }
       }
+      if (!habit) {
+        const created = await supabase.from('habits').insert({ ...values, user_id: user.id }).select('*').single();
+        if (created.error) throw created.error;
+        habit = created.data as HabitRow;
+      }
+      habitsImported += 1;
+      if (oldId && habit) habitIdMap.set(oldId, String(habit.id));
     }
 
     for (const record of logRecords) {
@@ -82,11 +98,10 @@ export async function POST(request: Request) {
       const mappedHabitId = typeof record.habitId === 'string' ? habitIdMap.get(record.habitId) : undefined;
       const date = cleanDate(record.date);
       if (!mappedHabitId || !date) continue;
-      await HabitLog.findOneAndUpdate(
-        { userId: user._id, habitId: mappedHabitId, date },
-        { $set: { completed: Boolean(record.completed), ...(Number.isFinite(Number(record.value)) ? { value: Number(record.value) } : {}) } },
-        { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true },
-      );
+      const payload: Record<string, unknown> = { user_id: user.id, habit_id: mappedHabitId, date: date.toISOString(), completed: Boolean(record.completed) };
+      if (Number.isFinite(Number(record.value))) payload.value = Number(record.value);
+      const result = await supabase.from('habit_logs').upsert(payload, { onConflict: 'user_id,habit_id,date' });
+      if (result.error) throw result.error;
       logsImported += 1;
     }
 
@@ -97,9 +112,11 @@ export async function POST(request: Request) {
       const duration = Number(record.duration);
       const category = record.category;
       if (!startTime || !endTime || !Number.isFinite(duration) || duration <= 0 || !['Study', 'Other', 'Food'].includes(category)) continue;
-      const duplicate = await TimerLog.exists({ userId: user._id, category, startTime, endTime, duration });
-      if (!duplicate) {
-        await TimerLog.create({ userId: user._id, category, startTime, endTime, duration });
+      const duplicate = await supabase.from('timer_logs').select('id').eq('user_id', user.id).eq('category', category).eq('start_time', startTime.toISOString()).eq('end_time', endTime.toISOString()).eq('duration', Math.round(duration)).maybeSingle();
+      if (duplicate.error) throw duplicate.error;
+      if (!duplicate.data) {
+        const inserted = await supabase.from('timer_logs').insert({ user_id: user.id, category, start_time: startTime.toISOString(), end_time: endTime.toISOString(), duration: Math.round(duration) });
+        if (inserted.error) throw inserted.error;
         timerLogsImported += 1;
       }
     }

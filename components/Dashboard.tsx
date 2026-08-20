@@ -144,7 +144,7 @@ export default function Dashboard() {
       const savedLog = await response.json();
       persistLogs(nextLogs.map((log) => (log._id === nextLog._id ? savedLog : log)));
     } catch {
-      setErrorMessage('Saved locally. Connect MongoDB to sync this change.');
+      setErrorMessage('Saved locally. Connect Supabase to sync this change.');
     }
   };
 
@@ -175,7 +175,7 @@ export default function Dashboard() {
       persistHabits([...habits, created]);
     } catch {
       persistHabits([...habits, localHabit]);
-      setErrorMessage('Habit added locally. Connect MongoDB to sync it.');
+      setErrorMessage('Habit added locally. Connect Supabase to sync it.');
     } finally {
       setNewHabitName('');
       setNewHabitDescription('');
@@ -201,7 +201,7 @@ export default function Dashboard() {
       const saved = await response.json();
       persistHabits(nextHabits.map((habit) => (habit._id === editingHabit._id ? saved : habit)));
     } catch {
-      setErrorMessage('Updated locally. Connect MongoDB to sync it.');
+      setErrorMessage('Updated locally. Connect Supabase to sync it.');
     } finally {
       setEditingHabit(null);
       setIsSaving(false);
@@ -219,7 +219,7 @@ export default function Dashboard() {
       const response = await fetch(`/api/habits?id=${encodeURIComponent(deletedId)}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Unable to delete habit');
     } catch {
-      setErrorMessage('Removed locally. Connect MongoDB to sync it.');
+      setErrorMessage('Removed locally. Connect Supabase to sync it.');
     }
   };
 
