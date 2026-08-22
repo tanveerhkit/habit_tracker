@@ -8,6 +8,7 @@ import { readStored, writeStored } from '@/lib/clientStorage';
 import { AuthGate, useAuth } from '@/lib/auth-client';
 import AuthScreen from '@/components/AuthScreen';
 import ThemeToggle from '@/components/ThemeToggle';
+import MobileTabBar from '@/components/MobileTabBar';
 
 type Category = 'Study' | 'Other' | 'Food';
 type TimerLog = { _id: string; category: Category; startTime: string; endTime: string; duration: number };
@@ -98,7 +99,7 @@ function TimerContent() {
   const recentDays = useMemo(() => Array.from({ length: 7 }, (_, index) => { const day = subDays(new Date(), 6 - index); const duration = logs.filter((log) => isSameDay(new Date(log.startTime), day)).reduce((total, log) => total + log.duration, 0); return { day: format(day, 'EEE'), duration }; }), [logs]);
 
   return (
-    <div className="app-shell page-grid min-h-screen px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+    <div className="app-shell page-grid min-h-screen px-4 pb-24 pt-5 sm:px-6 lg:px-10 lg:pb-8 lg:pt-8">
       <div className="mx-auto w-full max-w-6xl">
         <header className="mb-8 flex items-start justify-between gap-4"><div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">Make space for focus</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Focus timer<span className="text-accent">.</span></h1><p className="mt-3 text-sm leading-6 text-muted">A simple timer for the work that deserves your attention.</p></div><div className="flex items-start gap-2"><div className="hidden rounded-2xl bg-foreground px-5 py-4 text-background sm:block"><p className="text-xs font-semibold uppercase tracking-[.14em] text-background/50">Today</p><p className="mt-2 font-display text-3xl font-semibold">{formatDuration(todayDuration)}</p><p className="mt-1 text-xs text-background/60">of focused time</p></div><div className="flex items-center gap-2"><span className="hidden items-center gap-1 text-xs text-muted md:flex"><UserCircle size={15} />{user.name}</span><ThemeToggle /><button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted hover:text-danger"><LogOut size={16} /></button></div></div></header>
 
@@ -108,6 +109,7 @@ function TimerContent() {
           <aside className="space-y-6"><div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Last 7 days</p><h2 className="mt-2 font-display text-2xl font-semibold text-ink">{formatDuration(weeklyDuration)}</h2></div><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><BarChart3 size={17} /></span></div><div className="mt-7 flex h-32 items-end gap-2">{recentDays.map((day) => { const height = weeklyDuration ? Math.max((day.duration / Math.max(...recentDays.map((item) => item.duration), 1)) * 100, day.duration ? 8 : 2) : 2; return <div key={day.day} className="flex flex-1 flex-col items-center gap-2"><div className="flex h-24 w-full items-end"><div className="w-full rounded-t-lg bg-accent transition-all" style={{ height: `${height}%`, opacity: day.duration ? .9 : .15 }} /></div><span className="text-[10px] font-semibold text-muted">{day.day}</span></div>; })}</div></div><div className="surface p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)]"><div className="mb-4 flex items-center gap-2"><Check size={16} className="text-accent" /><h2 className="font-display text-lg font-semibold text-ink">How it works</h2></div><ol className="space-y-3 text-sm leading-5 text-muted"><li><span className="mr-2 font-semibold text-ink">01</span>Choose what you are focusing on.</li><li><span className="mr-2 font-semibold text-ink">02</span>Stop or switch when you are done.</li><li><span className="mr-2 font-semibold text-ink">03</span>Your session is saved automatically.</li></ol></div></aside>
         </div>
       </div>
+      <MobileTabBar />
     </div>
   );
 }

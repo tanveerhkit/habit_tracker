@@ -40,6 +40,7 @@ import { readStored, writeStored } from '@/lib/clientStorage';
 import { useAuth } from '@/lib/auth-client';
 import ThemeToggle from './ThemeToggle';
 import BackupControls from './BackupControls';
+import MobileTabBar from './MobileTabBar';
 
 const FALLBACK_HABITS: IHabit[] = [];
 const ACCENT_COLORS = ['#6f7f55', '#b98659', '#9a7b9c', '#678da8', '#bd746b'];
@@ -279,7 +280,7 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+        <main className="min-w-0 flex-1 px-4 pb-24 pt-5 sm:px-6 lg:px-10 lg:pb-8 lg:pt-8">
           <header className="mb-7 flex items-start justify-between gap-4">
             <div>
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.18em] text-muted lg:hidden"><Menu size={15} /> Habitly</div>
@@ -356,6 +357,7 @@ export default function Dashboard() {
           </section>
         </main>
       </div>
+      <MobileTabBar />
 
       {editingHabit && <div className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Edit habit"><form onSubmit={updateHabit} className="surface w-full max-w-md p-5 shadow-2xl"><div className="mb-5 flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.14em] text-muted">Edit habit</p><h2 className="mt-2 font-display text-xl font-semibold text-ink">Keep it honest.</h2></div><button type="button" onClick={() => setEditingHabit(null)} aria-label="Close edit dialog" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><X size={17} /></button></div><label className="mb-4 block text-sm font-semibold text-ink">Name<input value={editingHabit.name} onChange={(event) => setEditingHabit({ ...editingHabit, name: event.target.value })} className="mt-2 w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" /></label><label className="mb-6 block text-sm font-semibold text-ink">Note<textarea value={editingHabit.description || ''} onChange={(event) => setEditingHabit({ ...editingHabit, description: event.target.value })} rows={3} className="mt-2 w-full resize-none rounded-xl border border-line bg-surface px-3 py-2.5 text-sm font-normal text-ink focus:border-accent focus:outline-none" placeholder="A short note to keep you on track" /></label><div className="flex items-center justify-between gap-3"><button type="button" onClick={deleteHabit} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-[#b66a63] hover:bg-[#fbefed]"><Trash2 size={15} /> Delete</button><div className="flex gap-2"><button type="button" onClick={() => setEditingHabit(null)} className="rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:bg-surface-muted">Cancel</button><button type="submit" disabled={isSaving} className="rounded-xl bg-foreground px-4 py-2 text-sm font-semibold text-background hover:bg-accent-strong disabled:opacity-50">{isSaving ? 'Saving…' : 'Save changes'}</button></div></div></form></div>}
     </div>

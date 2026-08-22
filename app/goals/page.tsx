@@ -7,6 +7,7 @@ import { readStored, writeStored } from '@/lib/clientStorage';
 import { AuthGate, useAuth } from '@/lib/auth-client';
 import AuthScreen from '@/components/AuthScreen';
 import ThemeToggle from '@/components/ThemeToggle';
+import MobileTabBar from '@/components/MobileTabBar';
 
 type Goal = {
   id: string;
@@ -67,7 +68,7 @@ function GoalsContent() {
   };
 
   return (
-    <div className="app-shell page-grid min-h-screen px-4 py-5 sm:px-6 lg:px-10 lg:py-8">
+    <div className="app-shell page-grid min-h-screen px-4 pb-24 pt-5 sm:px-6 lg:px-10 lg:pb-8 lg:pt-8">
       <div className="mx-auto w-full max-w-5xl">
         <header className="mb-10 flex items-start justify-between gap-4">
           <div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">A bigger picture</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Goals<span className="text-accent">.</span></h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">Keep the direction visible. Break large intentions into the next clear step.</p></div>
@@ -82,6 +83,7 @@ function GoalsContent() {
 
         {visibleGoals.length ? <div className="grid gap-4 sm:grid-cols-2">{visibleGoals.map((goal) => <article key={goal.id} className={`surface group p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_34px_rgba(30,30,20,.07)] ${goal.completed ? 'bg-surface-muted' : ''}`}><div className="mb-8 flex items-start justify-between gap-3"><button onClick={() => saveGoals(goals.map((item) => item.id === goal.id ? { ...item, completed: !item.completed } : item))} aria-label={`${goal.completed ? 'Mark incomplete' : 'Mark complete'}: ${goal.title}`} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${goal.completed ? 'border-accent bg-accent text-white' : 'border-line text-transparent hover:border-accent hover:bg-accent-soft'}`}>{goal.completed ? <Check size={19} /> : <Circle size={18} />}</button><div className="flex gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"><button onClick={() => startEdit(goal)} aria-label={`Edit ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><Pencil size={15} /></button><button onClick={() => saveGoals(goals.filter((item) => item.id !== goal.id))} aria-label={`Delete ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-[#fbefed] hover:text-[#b66a63]"><Trash2 size={15} /></button></div></div><p className={`font-display text-xl font-semibold tracking-tight ${goal.completed ? 'text-muted line-through' : 'text-ink'}`}>{goal.title}</p><p className="mt-2 min-h-10 text-sm leading-5 text-muted">{goal.note || 'No note added yet.'}</p><div className="mt-6 flex items-center gap-2 text-xs font-semibold text-accent"><Flag size={14} /> {goal.completed ? 'Completed' : 'In progress'}</div></article>)}</div> : <div className="surface px-6 py-16 text-center"><div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent"><Sparkles size={22} /></div><h2 className="font-display text-xl font-semibold text-ink">Nothing here yet.</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">Add a goal you can move forward with this week. You can always refine it later.</p><button onClick={() => { resetForm(); setIsAdding(true); }} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-semibold text-background hover:bg-accent-strong"><Plus size={16} /> Create a goal</button></div>}
       </div>
+      <MobileTabBar />
     </div>
   );
 }
