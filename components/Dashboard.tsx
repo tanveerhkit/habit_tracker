@@ -41,6 +41,7 @@ import { useAuth } from '@/lib/auth-client';
 import ThemeToggle from './ThemeToggle';
 import BackupControls from './BackupControls';
 import MobileTabBar from './MobileTabBar';
+import StreakBadge from './StreakBadge';
 
 const FALLBACK_HABITS: IHabit[] = [];
 const ACCENT_COLORS = ['#6f7f55', '#b98659', '#9a7b9c', '#678da8', '#bd746b'];
@@ -233,17 +234,21 @@ export default function Dashboard() {
   const completionRate = totalPossible ? Math.round((totalCompleted / totalPossible) * 100) : 0;
   const todayCompleted = habits.filter((habit) => getLog(habit._id, new Date())?.completed).length;
 
+  const isHabitDayComplete = useCallback((date: Date) => (
+    habits.length > 0 && habits.every((habit) => getLog(habit._id, date)?.completed)
+  ), [getLog, habits]);
+  const todayAllHabitsComplete = isHabitDayComplete(new Date());
   const currentStreak = useMemo(() => {
     let streak = 0;
-    for (let index = 0; index < 366; index += 1) {
+    const startsWithToday = todayAllHabitsComplete;
+    for (let index = startsWithToday ? 0 : 1; index < 366; index += 1) {
       const day = new Date();
       day.setDate(day.getDate() - index);
-      const completed = habits.length > 0 && habits.every((habit) => getLog(habit._id, day)?.completed);
-      if (!completed) break;
+      if (!isHabitDayComplete(day)) break;
       streak += 1;
     }
     return streak;
-  }, [getLog, habits]);
+  }, [isHabitDayComplete, todayAllHabitsComplete]);
 
   const weeklyStats = useMemo(() => {
     const weeks: { label: string; completed: number; possible: number }[] = [];
@@ -287,10 +292,13 @@ export default function Dashboard() {
               <p className="mb-1 text-sm text-muted">{todayLabel}</p>
               <h1 className="font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Good morning, {user.name.split(' ')[0]}<span className="text-accent">.</span></h1>
               <p className="mt-2 text-sm text-muted">A quiet view of your progress this month.</p>
+              <div className="mt-4 sm:hidden"><StreakBadge streak={currentStreak} celebrating={todayAllHabitsComplete} label="Habit streak" /></div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="hidden items-center gap-2 pr-1 text-xs text-muted md:flex"><UserCircle size={16} /><span className="max-w-[120px] truncate">{user.email}</span></div>
-              <BackupControls />
+                          <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-2 pr-1 text-xs text-muted md:flex"><UserCircle size={16} /><span className="max-w-[120px] truncate">{user.email}</span></div>
+                <div className="hidden sm:block"><StreakBadge streak={currentStreak} celebrating={todayAllHabitsComplete} label="Habit streak" /></div>
+                <BackupControls />
+
               <ThemeToggle />
               <button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted transition hover:border-[#e4c9c5] hover:text-danger"><LogOut size={16} /></button>
               <Link href="/goals" className="hidden items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink shadow-sm transition hover:border-accent/40 sm:flex"><Flag size={15} /> Goals</Link>

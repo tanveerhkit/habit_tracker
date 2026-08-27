@@ -83,10 +83,21 @@ button:disabled { cursor: not-allowed; }
 
 .fade-in { animation: fade-in .35s ease-out both; }
 
+.streak-fire { animation: streak-pop .45s ease-out both; }
+.streak-flame { animation: flame-flicker .7s ease-in-out infinite alternate; transform-origin: 50% 85%; }
+
+@keyframes streak-pop { 0% { opacity: .7; transform: scale(.92); } 65% { transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
+@keyframes flame-flicker { from { transform: rotate(-5deg) scale(.96); } to { transform: rotate(5deg) scale(1.06); } }
+
 @keyframes fade-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+@media (max-width: 639px) {
+  .streak-fire { animation: none; }
+  .streak-flame { animation: none; }
 }
 
 ::-webkit-scrollbar { width: 9px; height: 9px; }

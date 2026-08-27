@@ -1,19 +1,22 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Check, Circle, Flag, LogOut, Pencil, Plus, Sparkles, Trash2, UserCircle, X } from 'lucide-react';
+import { isSameDay } from 'date-fns';
 import { readStored, writeStored } from '@/lib/clientStorage';
 import { AuthGate, useAuth } from '@/lib/auth-client';
 import AuthScreen from '@/components/AuthScreen';
 import ThemeToggle from '@/components/ThemeToggle';
 import MobileTabBar from '@/components/MobileTabBar';
+import StreakBadge from '@/components/StreakBadge';
 
 type Goal = {
   id: string;
   title: string;
   note: string;
   completed: boolean;
+  completedAt?: string;
 };
 
 const DEFAULT_GOALS: Goal[] = [];
@@ -67,12 +70,35 @@ function GoalsContent() {
     setIsAdding(true);
   };
 
+  const toggleGoal = (goalId: string) => {
+    const completedAt = new Date().toISOString();
+    saveGoals(goals.map((goal) => goal.id === goalId
+      ? { ...goal, completed: !goal.completed, completedAt: goal.completed ? undefined : completedAt }
+      : goal));
+  };
+
+  const isGoalDayComplete = useCallback((date: Date) => (
+    goals.length > 0 && goals.every((goal) => goal.completed && Boolean(goal.completedAt) && isSameDay(new Date(goal.completedAt as string), date))
+  ), [goals]);
+  const todayAllGoalsComplete = isGoalDayComplete(new Date());
+  const goalStreak = useMemo(() => {
+    let streak = 0;
+    for (let index = todayAllGoalsComplete ? 0 : 1; index < 366; index += 1) {
+      const day = new Date();
+      day.setDate(day.getDate() - index);
+      if (!isGoalDayComplete(day)) break;
+      streak += 1;
+    }
+    return streak;
+  }, [isGoalDayComplete, todayAllGoalsComplete]);
+
   return (
     <div className="app-shell page-grid min-h-screen px-4 pb-24 pt-5 sm:px-6 lg:px-10 lg:pb-8 lg:pt-8">
       <div className="mx-auto w-full max-w-5xl">
         <header className="mb-10 flex items-start justify-between gap-4">
-          <div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">A bigger picture</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Goals<span className="text-accent">.</span></h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">Keep the direction visible. Break large intentions into the next clear step.</p></div>
-          <div className="flex items-start gap-2"><div className="hidden rounded-2xl bg-foreground px-5 py-4 text-background sm:block"><p className="text-xs font-semibold uppercase tracking-[.14em] text-background/50">Progress</p><p className="mt-2 font-display text-3xl font-semibold">{progress}%</p><p className="mt-1 text-xs text-background/60">{completedCount} of {goals.length} complete</p></div><div className="flex items-center gap-2"><span className="hidden items-center gap-1 text-xs text-muted md:flex"><UserCircle size={15} />{user.name}</span><ThemeToggle /><button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted hover:text-danger"><LogOut size={16} /></button></div></div>
+          <div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">A bigger picture</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Goals<span className="text-accent">.</span></h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">Keep the direction visible. Break large intentions into the next clear step.</p><div className="mt-4 sm:hidden"><StreakBadge streak={goalStreak} celebrating={todayAllGoalsComplete} label="Goal streak" /></div></div>
+          <div className="flex items-start gap-2"><div className="hidden rounded-2xl bg-foreground px-5 py-4 text-background sm:block"><p className="text-xs font-semibold uppercase tracking-[.14em] text-background/50">Progress</p><p className="mt-2 font-display text-3xl font-semibold">{progress}%</p><p className="mt-1 text-xs text-background/60">{completedCount} of {goals.length} complete</p></div><div className="hidden sm:block"><StreakBadge streak={goalStreak} celebrating={todayAllGoalsComplete} label="Goal streak" /></div><div className="flex items-center gap-2">
+<span className="hidden items-center gap-1 text-xs text-muted md:flex"><UserCircle size={15} />{user.name}</span><ThemeToggle /><button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted hover:text-danger"><LogOut size={16} /></button></div></div>
         </header>
 
         <section className="surface mb-6 p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] sm:p-6"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-display text-xl font-semibold text-ink">Your direction</h2><p className="mt-1 text-sm text-muted">One meaningful goal is enough to begin.</p></div><button onClick={() => { resetForm(); setIsAdding(true); }} className="inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition hover:bg-accent-strong"><Plus size={16} /> Add goal</button></div><div className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-accent transition-all" style={{ width: `${progress}%` }} /></div><div className="mt-3 flex items-center justify-between text-xs text-muted"><span>{goals.length ? `${goals.length} goals in view` : 'No goals yet'}</span><span>{progress}% complete</span></div></section>
@@ -81,7 +107,7 @@ function GoalsContent() {
 
         <div className="mb-5 flex items-center gap-1 rounded-xl bg-surface-muted p-1" role="tablist" aria-label="Goal filter">{(['all', 'open', 'done'] as const).map((option) => <button key={option} onClick={() => setFilter(option)} role="tab" aria-selected={filter === option} className={`rounded-lg px-3 py-2 text-xs font-semibold capitalize transition ${filter === option ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}`}>{option === 'all' ? 'All goals' : option === 'open' ? 'In progress' : 'Completed'}</button>)}</div>
 
-        {visibleGoals.length ? <div className="grid gap-4 sm:grid-cols-2">{visibleGoals.map((goal) => <article key={goal.id} className={`surface group p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_34px_rgba(30,30,20,.07)] ${goal.completed ? 'bg-surface-muted' : ''}`}><div className="mb-8 flex items-start justify-between gap-3"><button onClick={() => saveGoals(goals.map((item) => item.id === goal.id ? { ...item, completed: !item.completed } : item))} aria-label={`${goal.completed ? 'Mark incomplete' : 'Mark complete'}: ${goal.title}`} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${goal.completed ? 'border-accent bg-accent text-white' : 'border-line text-transparent hover:border-accent hover:bg-accent-soft'}`}>{goal.completed ? <Check size={19} /> : <Circle size={18} />}</button><div className="flex gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"><button onClick={() => startEdit(goal)} aria-label={`Edit ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><Pencil size={15} /></button><button onClick={() => saveGoals(goals.filter((item) => item.id !== goal.id))} aria-label={`Delete ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-[#fbefed] hover:text-[#b66a63]"><Trash2 size={15} /></button></div></div><p className={`font-display text-xl font-semibold tracking-tight ${goal.completed ? 'text-muted line-through' : 'text-ink'}`}>{goal.title}</p><p className="mt-2 min-h-10 text-sm leading-5 text-muted">{goal.note || 'No note added yet.'}</p><div className="mt-6 flex items-center gap-2 text-xs font-semibold text-accent"><Flag size={14} /> {goal.completed ? 'Completed' : 'In progress'}</div></article>)}</div> : <div className="surface px-6 py-16 text-center"><div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent"><Sparkles size={22} /></div><h2 className="font-display text-xl font-semibold text-ink">Nothing here yet.</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">Add a goal you can move forward with this week. You can always refine it later.</p><button onClick={() => { resetForm(); setIsAdding(true); }} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-semibold text-background hover:bg-accent-strong"><Plus size={16} /> Create a goal</button></div>}
+        {visibleGoals.length ? <div className="grid gap-4 sm:grid-cols-2">{visibleGoals.map((goal) => <article key={goal.id} className={`surface group p-5 shadow-[0_8px_30px_rgba(30,30,20,.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_34px_rgba(30,30,20,.07)] ${goal.completed ? 'bg-surface-muted' : ''}`}><div className="mb-8 flex items-start justify-between gap-3"><button onClick={() => toggleGoal(goal.id)} aria-label={`${goal.completed ? 'Mark incomplete' : 'Mark complete'}: ${goal.title}`} className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition ${goal.completed ? 'border-accent bg-accent text-white' : 'border-line text-transparent hover:border-accent hover:bg-accent-soft'}`}>{goal.completed ? <Check size={19} /> : <Circle size={18} />}</button><div className="flex gap-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"><button onClick={() => startEdit(goal)} aria-label={`Edit ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><Pencil size={15} /></button><button onClick={() => saveGoals(goals.filter((item) => item.id !== goal.id))} aria-label={`Delete ${goal.title}`} className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-[#fbefed] hover:text-[#b66a63]"><Trash2 size={15} /></button></div></div><p className={`font-display text-xl font-semibold tracking-tight ${goal.completed ? 'text-muted line-through' : 'text-ink'}`}>{goal.title}</p><p className="mt-2 min-h-10 text-sm leading-5 text-muted">{goal.note || 'No note added yet.'}</p><div className="mt-6 flex items-center gap-2 text-xs font-semibold text-accent"><Flag size={14} /> {goal.completed ? 'Completed' : 'In progress'}</div></article>)}</div> : <div className="surface px-6 py-16 text-center"><div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent"><Sparkles size={22} /></div><h2 className="font-display text-xl font-semibold text-ink">Nothing here yet.</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted">Add a goal you can move forward with this week. You can always refine it later.</p><button onClick={() => { resetForm(); setIsAdding(true); }} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-foreground px-4 py-2.5 text-sm font-semibold text-background hover:bg-accent-strong"><Plus size={16} /> Create a goal</button></div>}
       </div>
       <MobileTabBar />
     </div>
