@@ -7,6 +7,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ user: user ? publicUser(user) : null });
   } catch (error) {
     console.error('GET /api/auth/me error:', error);
-    return NextResponse.json({ user: null });
+    return NextResponse.json({ error: 'Unable to check session' }, { status: 503 });
   }
 }

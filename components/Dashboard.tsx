@@ -76,6 +76,11 @@ export default function Dashboard() {
     () => eachDayOfInterval({ start: calendarStart, end: calendarEnd }),
     [calendarStart, calendarEnd],
   );
+  const monthlyDays = useMemo(
+    () => eachDayOfInterval({ start: monthStart, end: monthEnd }),
+    [monthStart, monthEnd],
+  );
+  const monthGridStyle = useMemo(() => ({ gridTemplateColumns: `minmax(150px, 1.4fr) repeat(${monthlyDays.length}, minmax(32px, 1fr))` }), [monthlyDays.length]);
 
   const persistHabits = useCallback((nextHabits: IHabit[]) => {
     setHabits(nextHabits);
@@ -85,6 +90,14 @@ export default function Dashboard() {
   const persistLogs = useCallback((nextLogs: IHabitLog[]) => {
     setLogs(nextLogs);
     writeStored('logs', nextLogs, userScope);
+  }, [userScope]);
+
+  const replaceLog = useCallback((logId: string, savedLog: IHabitLog) => {
+    setLogs((currentLogs) => {
+      const nextLogs = currentLogs.map((log) => log._id === logId ? savedLog : log);
+      writeStored('logs', nextLogs, userScope);
+      return nextLogs;
+    });
   }, [userScope]);
 
   const fetchData = useCallback(async () => {
@@ -143,8 +156,8 @@ export default function Dashboard() {
         body: JSON.stringify({ habitId, date: date.toISOString(), completed }),
       });
       if (!response.ok) throw new Error('Unable to save log');
-      const savedLog = await response.json();
-      persistLogs(nextLogs.map((log) => (log._id === nextLog._id ? savedLog : log)));
+      const savedLog = await response.json() as IHabitLog;
+      replaceLog(nextLog._id, savedLog);
     } catch {
       setErrorMessage('Saved locally. Connect Supabase to sync this change.');
     }
@@ -213,15 +226,20 @@ export default function Dashboard() {
   const deleteHabit = async () => {
     if (!editingHabit) return;
     const deletedId = editingHabit._id;
+    const previousHabits = habits;
+    const previousLogs = logs;
     persistHabits(habits.filter((habit) => habit._id !== deletedId));
     persistLogs(logs.filter((log) => log.habitId !== deletedId));
     setEditingHabit(null);
+    if (deletedId.startsWith('local-')) return;
 
     try {
       const response = await fetch(`/api/habits?id=${encodeURIComponent(deletedId)}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Unable to delete habit');
     } catch {
-      setErrorMessage('Removed locally. Connect Supabase to sync it.');
+      persistHabits(previousHabits);
+      persistLogs(previousLogs);
+      setErrorMessage('Could not delete this habit. Your data was restored.');
     }
   };
 
@@ -352,7 +370,7 @@ export default function Dashboard() {
 
               <div className="surface overflow-hidden shadow-[0_8px_30px_rgba(30,30,20,.03)]">
                 <div className="flex items-center justify-between border-b border-line px-5 py-4"><div><h2 className="font-display text-lg font-semibold text-ink">Monthly rhythm</h2><p className="mt-1 text-xs text-muted">{format(currentDate, 'MMMM yyyy')}</p></div><div className="flex items-center gap-1"><button onClick={() => setCurrentDate((date) => addMonths(date, -1))} aria-label="Previous month" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><ChevronLeft size={17} /></button><button onClick={() => setCurrentDate(new Date())} className="rounded-lg px-2 py-1 text-xs font-semibold text-muted hover:bg-surface-muted hover:text-ink">Today</button><button onClick={() => setCurrentDate((date) => addMonths(date, 1))} aria-label="Next month" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink"><ChevronRight size={17} /></button></div></div>
-                <div className="overflow-x-auto"><div className="min-w-[640px] p-4"><div className="grid grid-cols-[minmax(150px,1.4fr)_repeat(7,minmax(48px,1fr))] border-b border-line pb-2 text-center text-[10px] font-semibold uppercase tracking-[.12em] text-muted"><div className="text-left">Habit</div>{['M','T','W','T','F','S','S'].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}</div>{habits.map((habit) => <div key={habit._id} className="grid grid-cols-[minmax(150px,1.4fr)_repeat(7,minmax(48px,1fr))] items-center border-b border-line py-2 last:border-b-0"><div className="truncate pr-3 text-xs font-semibold text-ink">{habit.name}</div>{calendarDays.slice(0, 7).map((day) => <div key={day.toISOString()} className="flex justify-center"><button onClick={() => toggleHabit(habit._id, day)} aria-label={`${habit.name} on ${format(day, 'MMM d')}`} className={`grid h-7 w-7 place-items-center rounded-lg border text-[11px] transition ${getLog(habit._id, day)?.completed ? 'border-accent bg-accent text-white' : 'border-line bg-surface-muted text-transparent hover:border-accent hover:bg-accent-soft'}`}><Check size={13} strokeWidth={3} /></button></div>)}</div>)}{habits.length === 0 && <p className="py-10 text-center text-sm text-muted">Add a habit to see its weekly rhythm.</p>}</div></div>
+                <div className="overflow-x-auto"><div className="min-w-[1120px] p-4"><div className="grid border-b pb-2 text-center text-[10px] font-semibold uppercase tracking-[.12em] text-muted" style={monthGridStyle}><div className="text-left">Habit</div>{monthlyDays.map((day) => <div key={day.toISOString()} title={format(day, 'EEEE, MMM d')}>{format(day, 'd')}</div>)}</div>{habits.map((habit) => <div key={habit._id} className="grid items-center border-b border-line py-2 last:border-b-0" style={monthGridStyle}><div className="truncate pr-3 text-xs font-semibold text-ink">{habit.name}</div>{monthlyDays.map((day) => <div key={day.toISOString()} className="flex justify-center"><button onClick={() => toggleHabit(habit._id, day)} aria-label={`${habit.name} on ${format(day, 'MMM d')}`} className={`grid h-7 w-7 place-items-center rounded-lg border text-[11px] transition ${getLog(habit._id, day)?.completed ? 'border-accent bg-accent text-white' : 'border-line bg-surface-muted text-transparent hover:border-accent hover:bg-accent-soft'}`}><Check size={13} strokeWidth={3} /></button></div>)}</div>)}{habits.length === 0 && <p className="py-10 text-center text-sm text-muted">Add a habit to see its monthly rhythm.</p>}</div></div>
               </div>
             </div>
 

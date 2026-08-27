@@ -17,6 +17,23 @@ export type HabitLogRow = {
   value: number | null;
 };
 
+export type GoalLogRow = {
+  id: string;
+  goal_id: string;
+  date: string;
+  completed: boolean;
+};
+
+export type GoalRow = {
+  id: string;
+  title: string;
+  note: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TimerLogRow = {
   id: string;
   category: string;
@@ -45,6 +62,19 @@ export function mapHabitLog(row: HabitLogRow) {
     date: row.date,
     completed: Boolean(row.completed),
     ...(row.value === null || row.value === undefined ? {} : { value: Number(row.value) }),
+  };
+}
+
+export function mapGoal(row: GoalRow, completionDates: string[] = []) {
+  return {
+    id: row.id,
+    title: row.title,
+    note: row.note || '',
+    completed: Boolean(row.completed),
+    ...(row.completed_at ? { completedAt: row.completed_at } : {}),
+    completionDates,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 

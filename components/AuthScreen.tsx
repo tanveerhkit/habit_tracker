@@ -15,12 +15,26 @@ export default function AuthScreen() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+    if (mode === 'register' && (cleanName.length < 2 || cleanName.length > 80)) {
+      setError('Please enter a name between 2 and 80 characters.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 320) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/auth/${mode === 'login' ? 'login' : 'register'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name: cleanName, email: cleanEmail, password }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Something went wrong.');

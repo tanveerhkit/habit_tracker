@@ -5,7 +5,7 @@ import { Download, Upload } from 'lucide-react';
 import { useAuth } from '@/lib/auth-client';
 import { readStored, writeStored } from '@/lib/clientStorage';
 
-type LocalGoal = { id: string; title: string; note: string; completed: boolean };
+type LocalGoal = { id: string; title: string; note: string; completed: boolean; completedAt?: string; completionDates?: string[] };
 
 export default function BackupControls() {
   const { user } = useAuth();
@@ -22,7 +22,7 @@ export default function BackupControls() {
       const response = await fetch('/api/backup', { cache: 'no-store' });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Export failed.');
-      const payload = { ...data, goals: readStored<LocalGoal[]>('goals', [], user.id) };
+      const payload = { ...data, goals: Array.isArray(data.goals) ? data.goals : readStored<LocalGoal[]>('goals', [], user.id) };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -52,7 +52,7 @@ export default function BackupControls() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Import failed.');
       if (Array.isArray(payload.goals)) writeStored('goals', payload.goals, user.id);
-      setMessage(`Restored ${data.habitsImported} habits, ${data.logsImported} check-ins, and ${data.timerLogsImported} focus sessions.`);
+      setMessage(`Restored ${data.habitsImported} habits, ${data.goalsImported ?? 0} goals, ${data.logsImported} check-ins, and ${data.timerLogsImported} focus sessions.`);
       window.setTimeout(() => window.location.reload(), 900);
     } catch (importError) {
       setError(importError instanceof SyntaxError ? 'That file is not valid JSON.' : importError instanceof Error ? importError.message : 'Import failed.');

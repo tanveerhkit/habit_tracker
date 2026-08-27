@@ -13,9 +13,11 @@ export async function POST(request: Request) {
     const category = body?.category;
     const startTime = new Date(String(body?.startTime || ''));
     const endTime = new Date(String(body?.endTime || ''));
-    const duration = Number(body?.duration);
-    if (!categories.includes(category) || Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime()) || !Number.isFinite(duration) || duration <= 0) {
-      return NextResponse.json({ error: 'Valid category, timestamps, and duration are required' }, { status: 400 });
+    const duration = endTime.getTime() - startTime.getTime();
+    const now = Date.now();
+    const maxSessionDuration = 7 * 24 * 60 * 60 * 1000;
+    if (!categories.includes(category) || Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime()) || duration < 1000 || duration > maxSessionDuration || startTime.getTime() > now + 60_000 || endTime.getTime() > now + 60_000) {
+      return NextResponse.json({ error: 'Valid category and timestamps are required' }, { status: 400 });
     }
 
     const { data, error } = await getSupabaseAdmin()

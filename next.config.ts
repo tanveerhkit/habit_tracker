@@ -1,17 +1,19 @@
-import path from "path";
-import type { NextConfig } from "next";
-import withPWA from "next-pwa";
+import path from 'path';
+import type { NextConfig } from 'next';
+import withPWA from 'next-pwa';
 
 const nextConfig: NextConfig = {
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   outputFileTracingRoot: path.join(__dirname, './'),
 };
 
 export default withPWA({
-  dest: "public",
-  register: true,
+  dest: 'public',
+  register: false,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
+  // Habitly already has browser-storage fallbacks. Avoid a stale service worker
+  // serving old app bundles after a deploy or trapping users on an old schema.
+  disable: true,
 })(nextConfig);
