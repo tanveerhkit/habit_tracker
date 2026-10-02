@@ -3,6 +3,7 @@ import type { NextConfig } from 'next';
 import withPWA from 'next-pwa';
 
 const nextConfig: NextConfig = {
+  ...(process.env.GITHUB_ACTIONS ? { output: 'export' as const, basePath: '/habit_tracker', assetPrefix: '/habit_tracker/', images: { unoptimized: true } } : {}),
   typescript: {
     ignoreBuildErrors: false,
   },
