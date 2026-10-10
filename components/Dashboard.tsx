@@ -54,6 +54,10 @@ function formatDurationDays(days: number) {
   return `${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
+function isLocalRecord(id: string) {
+  return id.startsWith('local-');
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const userScope = user.id;
@@ -110,7 +114,52 @@ export default function Dashboard() {
       const habitsResponse = await fetch('/api/habits', { cache: 'no-store' });
       if (!habitsResponse.ok) throw new Error('Habit API unavailable');
       const habitsData = await habitsResponse.json();
-      const nextHabits = Array.isArray(habitsData) ? habitsData : storedHabits;
+      let nextHabits: IHabit[] = Array.isArray(habitsData) ? habitsData : [];
+
+      // Older versions kept writes in localStorage while Supabase was paused.
+      // Once the API is healthy, upload those records and replace their local IDs
+      // so they are available from every device, rather than silently leaving them
+      // stranded in this browser.
+      const localHabits = storedHabits.filter((habit) => isLocalRecord(habit._id));
+      const habitIdMap = new Map<string, string>();
+      for (const localHabit of localHabits) {
+        const existing = nextHabits.find((habit) => habit.name.trim().toLowerCase() === localHabit.name.trim().toLowerCase());
+        if (existing) {
+          habitIdMap.set(localHabit._id, existing._id);
+          continue;
+        }
+        const migration = await fetch('/api/habits', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: localHabit.name,
+            description: localHabit.description,
+            icon: localHabit.icon,
+            color: localHabit.color,
+            goal: localHabit.goal,
+            order: localHabit.order,
+          }),
+        });
+        if (!migration.ok) throw new Error('Pending habit sync failed');
+        const saved = await migration.json() as IHabit;
+        habitIdMap.set(localHabit._id, saved._id);
+        nextHabits = [...nextHabits, saved];
+      }
+
+      const localLogs = storedLogs.filter((log) => isLocalRecord(log._id) && habitIdMap.has(log.habitId));
+      for (const localLog of localLogs) {
+        const migration = await fetch('/api/logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            habitId: habitIdMap.get(localLog.habitId),
+            date: localLog.date,
+            completed: localLog.completed,
+          }),
+        });
+        if (!migration.ok) throw new Error('Pending check-in sync failed');
+      }
+
       persistHabits(nextHabits);
 
       const start = calendarStart.toISOString();
@@ -118,11 +167,11 @@ export default function Dashboard() {
       const logsResponse = await fetch(`/api/logs?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`, { cache: 'no-store' });
       if (!logsResponse.ok) throw new Error('Log API unavailable');
       const logsData = await logsResponse.json();
-      persistLogs(Array.isArray(logsData) ? logsData : storedLogs);
+      persistLogs(Array.isArray(logsData) ? logsData : []);
     } catch {
       setHabits(storedHabits);
       setLogs(storedLogs);
-      setErrorMessage('Offline mode — your changes are saved in this browser.');
+      setErrorMessage('Sync is temporarily unavailable. Changes are safe on this device and will retry when you reconnect.');
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +208,7 @@ export default function Dashboard() {
       const savedLog = await response.json() as IHabitLog;
       replaceLog(nextLog._id, savedLog);
     } catch {
-      setErrorMessage('Saved locally. Connect Supabase to sync this change.');
+      setErrorMessage('Sync is temporarily unavailable. This check-in is saved on this device and will retry when you reconnect.');
     }
   };
 
@@ -190,7 +239,7 @@ export default function Dashboard() {
       persistHabits([...habits, created]);
     } catch {
       persistHabits([...habits, localHabit]);
-      setErrorMessage('Habit added locally. Connect Supabase to sync it.');
+      setErrorMessage('Sync is temporarily unavailable. This habit is saved on this device and will retry when you reconnect.');
     } finally {
       setNewHabitName('');
       setNewHabitDescription('');
@@ -216,7 +265,7 @@ export default function Dashboard() {
       const saved = await response.json();
       persistHabits(nextHabits.map((habit) => (habit._id === editingHabit._id ? saved : habit)));
     } catch {
-      setErrorMessage('Updated locally. Connect Supabase to sync it.');
+      setErrorMessage('Sync is temporarily unavailable. This update is saved on this device and will retry when you reconnect.');
     } finally {
       setEditingHabit(null);
       setIsSaving(false);

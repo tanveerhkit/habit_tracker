@@ -81,7 +81,7 @@ function GoalsContent() {
       persistGoals(nextGoals);
     } catch {
       persistGoals(storedGoals);
-      setErrorMessage('Offline mode — goal changes are saved in this browser.');
+      setErrorMessage('Sync is temporarily unavailable. Goal changes are safe on this device and will retry when you reconnect.');
     } finally {
       setIsLoading(false);
     }
@@ -127,7 +127,7 @@ function GoalsContent() {
         ? { ...editing, title: cleanTitle, note: note.trim() }
         : { id: `local-${Date.now()}`, title: cleanTitle, note: note.trim(), completed: false, completionDates: [] };
       persistGoals(editing ? goals.map((goal) => goal.id === editing.id ? localGoal : goal) : [...goals, localGoal]);
-      setErrorMessage('Saved locally. Connect Supabase to sync this goal.');
+      setErrorMessage('Sync is temporarily unavailable. This goal is saved on this device and will retry when you reconnect.');
       resetForm();
     } finally {
       setIsSaving(false);
@@ -148,7 +148,7 @@ function GoalsContent() {
       const saved = normalizeGoal(await response.json() as Goal);
       persistGoals(goals.map((item) => item.id === goal.id ? saved : item));
     } catch {
-      setErrorMessage('Saved locally. Connect Supabase to sync this goal.');
+      setErrorMessage('Sync is temporarily unavailable. This change is saved on this device and will retry when you reconnect.');
     }
   };
 
@@ -159,7 +159,7 @@ function GoalsContent() {
       const response = await fetch(`/api/goals?id=${encodeURIComponent(goal.id)}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Unable to delete goal');
     } catch {
-      setErrorMessage('Removed locally. Connect Supabase to sync this goal.');
+      setErrorMessage('Sync is temporarily unavailable. This removal is saved on this device and will retry when you reconnect.');
     }
   };
 

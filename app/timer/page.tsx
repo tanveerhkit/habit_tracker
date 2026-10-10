@@ -70,7 +70,7 @@ function TimerContent() {
         const data = await response.json();
         if (Array.isArray(data)) saveLogs(data);
       } catch {
-        setErrorMessage('Offline mode — timer history is available from this browser.');
+        setErrorMessage('Sync is temporarily unavailable. Timer history is safe on this device and will retry when you reconnect.');
       }
     };
     void fetchLogs();
@@ -105,7 +105,7 @@ function TimerContent() {
       const saved = await response.json() as TimerLog;
       replaceLog(localLog._id, saved);
     } catch {
-      setErrorMessage('Saved locally. Connect Supabase to sync this session.');
+      setErrorMessage('Sync is temporarily unavailable. This session is saved on this device and will retry when you reconnect.');
     } finally {
       setIsSaving(false);
     }
