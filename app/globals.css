@@ -96,6 +96,10 @@ button:disabled { cursor: not-allowed; }
 }
 
 @media (max-width: 639px) {
+  body { font-size: 14px; }
+  .page-grid { background-size: 24px 24px; }
+  .surface { border-radius: 14px; }
+  button, a { touch-action: manipulation; }
   .streak-fire { animation: none; }
   .streak-flame { animation: none; }
 }

@@ -190,9 +190,9 @@ function GoalsContent() {
   }, [isGoalDayComplete, todayAllGoalsComplete]);
 
   return (
-    <div className="app-shell page-grid min-h-screen px-4 pb-24 pt-5 sm:px-6 lg:px-10 lg:pb-8 lg:pt-8">
+    <div className="app-shell page-grid min-h-screen px-3 pb-24 pt-4 sm:px-6 sm:pt-5 lg:px-10 lg:pb-8 lg:pt-8">
       <div className="mx-auto w-full max-w-5xl">
-        <header className="mb-10 flex items-start justify-between gap-4">
+        <header className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
           <div><Link href="/" className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-muted transition hover:text-ink"><ArrowLeft size={16} /> Dashboard</Link><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-accent">A bigger picture</p><h1 className="font-display text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Goals<span className="text-accent">.</span></h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">Keep the direction visible. Break large intentions into the next clear step.</p><div className="mt-4 sm:hidden"><StreakBadge streak={goalStreak} celebrating={todayAllGoalsComplete} label="Goal streak" /></div></div>
           <div className="flex items-start gap-2"><div className="hidden rounded-2xl bg-foreground px-5 py-4 text-background sm:block"><p className="text-xs font-semibold uppercase tracking-[.14em] text-background/50">Progress</p><p className="mt-2 font-display text-3xl font-semibold">{progress}%</p><p className="mt-1 text-xs text-background/60">{completedCount} of {goals.length} complete</p></div><div className="hidden sm:block"><StreakBadge streak={goalStreak} celebrating={todayAllGoalsComplete} label="Goal streak" /></div><div className="flex items-center gap-2"><span className="hidden items-center gap-1 text-xs text-muted md:flex"><UserCircle size={15} />{user.name}</span><ThemeToggle /><button onClick={() => void logout()} aria-label="Sign out" className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted hover:text-danger"><LogOut size={16} /></button></div></div>
         </header>
