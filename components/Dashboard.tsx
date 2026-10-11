@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   BarChart3,
   Check,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
   Flag,
+  GripVertical,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -71,6 +74,7 @@ export default function Dashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
+  const [draggingHabitId, setDraggingHabitId] = useState<string | null>(null);
 
   const monthStart = useMemo(() => startOfMonth(currentDate), [currentDate]);
   const monthEnd = useMemo(() => endOfMonth(currentDate), [currentDate]);
@@ -272,6 +276,43 @@ export default function Dashboard() {
     }
   };
 
+  const saveHabitOrder = async (orderedHabits: IHabit[]) => {
+    const nextHabits = orderedHabits.map((habit, index) => ({ ...habit, order: index }));
+    persistHabits(nextHabits);
+    try {
+      const updates = nextHabits
+        .filter((habit) => !isLocalRecord(habit._id))
+        .map((habit) => fetch('/api/habits', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ _id: habit._id, order: habit.order }),
+        }));
+      const responses = await Promise.all(updates);
+      if (responses.some((response) => !response.ok)) throw new Error('Unable to save habit order');
+    } catch {
+      setErrorMessage('The new sequence is saved on this device and will sync when the connection returns.');
+    }
+  };
+
+  const moveHabit = (index: number, direction: -1 | 1) => {
+    const destination = index + direction;
+    if (destination < 0 || destination >= habits.length) return;
+    const nextHabits = [...habits];
+    [nextHabits[index], nextHabits[destination]] = [nextHabits[destination], nextHabits[index]];
+    void saveHabitOrder(nextHabits);
+  };
+
+  const dropHabit = (targetIndex: number) => {
+    if (!draggingHabitId) return;
+    const sourceIndex = habits.findIndex((habit) => habit._id === draggingHabitId);
+    setDraggingHabitId(null);
+    if (sourceIndex < 0 || sourceIndex === targetIndex) return;
+    const nextHabits = [...habits];
+    const [movedHabit] = nextHabits.splice(sourceIndex, 1);
+    nextHabits.splice(targetIndex, 0, movedHabit);
+    void saveHabitOrder(nextHabits);
+  };
+
   const deleteHabit = async () => {
     if (!editingHabit) return;
     const deletedId = editingHabit._id;
@@ -393,7 +434,7 @@ export default function Dashboard() {
             <div className="min-w-0 space-y-4 sm:space-y-6">
               <div className="surface overflow-hidden shadow-[0_8px_30px_rgba(30,30,20,.03)]">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-3 sm:gap-3 sm:px-5 sm:py-4">
-                  <div><h2 className="font-display text-lg font-semibold text-ink">Your habits</h2><p className="mt-1 text-xs text-muted">Tap a day to mark it complete.</p></div>
+                  <div><h2 className="font-display text-lg font-semibold text-ink">Your habits</h2><p className="mt-1 text-xs text-muted">Tap a day to mark it complete · arrange your sequence</p></div>
                   <button onClick={() => setIsAdding((value) => !value)} className="inline-flex items-center gap-1.5 rounded-xl bg-foreground px-2.5 py-2 text-xs font-semibold text-background transition hover:bg-accent-strong sm:gap-2 sm:px-3 sm:text-sm"><Plus size={15} /> Add habit</button>
                 </div>
                 {isAdding && <form onSubmit={createHabit} className="grid gap-2 border-b border-line bg-surface-muted p-4 sm:grid-cols-[1fr_1fr_auto]">
@@ -405,11 +446,20 @@ export default function Dashboard() {
                   {habits.map((habit, index) => {
                     const completedToday = getLog(habit._id, new Date())?.completed;
                     const monthlyCount = currentMonthLogs.filter((log) => log.habitId === habit._id && log.completed).length;
-                    return <div key={habit._id} className="group flex items-center gap-2 px-3 py-3 transition hover:bg-surface-muted sm:gap-3 sm:px-5 sm:py-4">
+                    return <div key={habit._id} draggable onDragStart={() => setDraggingHabitId(habit._id)} onDragEnd={() => setDraggingHabitId(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropHabit(index)} className={`group flex items-center gap-2 px-3 py-3 transition hover:bg-surface-muted sm:gap-3 sm:px-5 sm:py-4 ${draggingHabitId === habit._id ? 'bg-accent-soft/60 opacity-60' : ''}`}>
+                      <div className="flex shrink-0 items-center gap-1 text-muted" title="Change sequence">
+                        <GripVertical size={15} className="hidden cursor-grab sm:block" />
+                        <span className="w-4 text-center text-[10px] font-bold tabular-nums">{index + 1}</span>
+                        <div className="flex flex-col sm:hidden">
+                          <button onClick={() => moveHabit(index, -1)} disabled={index === 0} aria-label={`Move ${habit.name} up`} className="grid h-4 w-5 place-items-center rounded text-muted hover:bg-surface-muted hover:text-ink disabled:opacity-25"><ArrowUp size={12} /></button>
+                          <button onClick={() => moveHabit(index, 1)} disabled={index === habits.length - 1} aria-label={`Move ${habit.name} down`} className="grid h-4 w-5 place-items-center rounded text-muted hover:bg-surface-muted hover:text-ink disabled:opacity-25"><ArrowDown size={12} /></button>
+                        </div>
+                      </div>
                       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-sm font-bold text-white sm:h-9 sm:w-9" style={{ background: ACCENT_COLORS[index % ACCENT_COLORS.length] }}>{habit.icon || '•'}</span>
                       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{habit.name}</p><p className="mt-1 truncate text-xs text-muted">{habit.description || `${monthlyCount} check-ins this month`}</p></div>
                       <span className="hidden text-xs text-muted sm:block">{monthlyCount} days</span>
                       <button onClick={() => toggleHabit(habit._id, new Date())} aria-label={`${completedToday ? 'Uncomplete' : 'Complete'} ${habit.name} today`} className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border transition ${completedToday ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-transparent hover:border-accent hover:text-accent'}`}><Check size={16} strokeWidth={2.5} /></button>
+                      <div className="hidden items-center gap-0.5 sm:flex"><button onClick={() => moveHabit(index, -1)} disabled={index === 0} aria-label={`Move ${habit.name} up`} className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink disabled:opacity-25"><ArrowUp size={14} /></button><button onClick={() => moveHabit(index, 1)} disabled={index === habits.length - 1} aria-label={`Move ${habit.name} down`} className="grid h-7 w-7 place-items-center rounded-lg text-muted hover:bg-surface-muted hover:text-ink disabled:opacity-25"><ArrowDown size={14} /></button></div>
                       <button onClick={() => setEditingHabit(habit)} aria-label={`Edit ${habit.name}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted opacity-100 transition hover:bg-surface-muted hover:text-ink sm:opacity-0 sm:group-hover:opacity-100"><Pencil size={15} /></button>
                     </div>;
                   })}
